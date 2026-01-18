@@ -1,0 +1,120 @@
+"""Reusable chart components using Altair."""
+
+import altair as alt
+import pandas as pd
+
+
+def status_color(status: str) -> str:
+    """Get color for status."""
+    colors = {
+        "pass": "#28a745",
+        "success": "#28a745",
+        "fail": "#dc3545",
+        "error": "#dc3545",
+        "warn": "#ffc107",
+        "skip": "#6c757d",
+    }
+    return colors.get(status.lower(), "#6c757d")
+
+
+def execution_time_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
+    """Line chart for execution time trends."""
+    if df.empty:
+        return alt.Chart().mark_text().encode(text=alt.value("No data"))
+
+    chart = (
+        alt.Chart(df)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("RUN_DATE:T", title="Date"),
+            y=alt.Y("AVG_TIME:Q", title="Avg Execution Time (s)"),
+            tooltip=["RUN_DATE:T", "AVG_TIME:Q", "RUN_COUNT:Q"],
+        )
+        .properties(height=height)
+    )
+    return chart
+
+
+def pass_rate_bar_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
+    """Bar chart showing pass rates."""
+    if df.empty:
+        return alt.Chart().mark_text().encode(text=alt.value("No data"))
+
+    chart = (
+        alt.Chart(df)
+        .mark_bar()
+        .encode(
+            x=alt.X("TEST_NAME:N", title="Test", sort="-y"),
+            y=alt.Y("PASS_RATE:Q", title="Pass Rate", scale=alt.Scale(domain=[0, 1])),
+            color=alt.condition(
+                alt.datum.PASS_RATE < 0.8,
+                alt.value("#dc3545"),
+                alt.value("#28a745"),
+            ),
+            tooltip=["TEST_NAME:N", "PASS_RATE:Q", "TOTAL_RUNS:Q"],
+        )
+        .properties(height=height)
+    )
+    return chart
+
+
+def run_status_timeline(df: pd.DataFrame, height: int = 100) -> alt.Chart:
+    """Mini timeline showing recent run statuses (sparkline-style)."""
+    if df.empty:
+        return alt.Chart().mark_text().encode(text=alt.value("No data"))
+
+    chart = (
+        alt.Chart(df.head(10))
+        .mark_circle(size=60)
+        .encode(
+            x=alt.X("GENERATED_AT:T", title=None, axis=alt.Axis(labels=False)),
+            color=alt.Color(
+                "STATUS:N",
+                scale=alt.Scale(
+                    domain=["pass", "success", "fail", "error"],
+                    range=["#28a745", "#28a745", "#dc3545", "#dc3545"],
+                ),
+                legend=None,
+            ),
+            tooltip=["STATUS:N", "GENERATED_AT:T", "EXECUTION_TIME:Q"],
+        )
+        .properties(height=height)
+    )
+    return chart
+
+
+def growth_trend_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
+    """Line chart for table row count trends."""
+    if df.empty:
+        return alt.Chart().mark_text().encode(text=alt.value("No data"))
+
+    chart = (
+        alt.Chart(df)
+        .mark_line(point=True)
+        .encode(
+            x=alt.X("METRIC_DATE:T", title="Date"),
+            y=alt.Y("ROW_COUNT:Q", title="Row Count"),
+            tooltip=["METRIC_DATE:T", "ROW_COUNT:Q"],
+        )
+        .properties(height=height)
+    )
+    return chart
+
+
+def top_models_bar_chart(df: pd.DataFrame, height: int = 400) -> alt.Chart:
+    """Horizontal bar chart for slowest models."""
+    if df.empty:
+        return alt.Chart().mark_text().encode(text=alt.value("No data"))
+
+    chart = (
+        alt.Chart(df)
+        .mark_bar()
+        .encode(
+            y=alt.Y("NAME:N", title="Model", sort="-x"),
+            x=alt.X("TOTAL_TIME:Q", title="Total Execution Time (s)"),
+            color=alt.value("#4a90d9"),
+            tooltip=["NAME:N", "TOTAL_TIME:Q", "AVG_TIME:Q", "RUN_COUNT:Q"],
+        )
+        .properties(height=height)
+    )
+    return chart
