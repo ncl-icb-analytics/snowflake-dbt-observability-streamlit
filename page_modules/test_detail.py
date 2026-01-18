@@ -31,7 +31,8 @@ def render(test_unique_id: str):
 
     # Description if available
     if details.get("DESCRIPTION"):
-        st.info(details["DESCRIPTION"])
+        st.markdown("**Description:**")
+        st.markdown(details["DESCRIPTION"])
 
     st.divider()
 

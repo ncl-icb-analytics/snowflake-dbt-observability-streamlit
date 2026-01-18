@@ -51,7 +51,8 @@ def render(unique_id: str):
         st.code(details.get("ORIGINAL_PATH") or "N/A", language=None)
 
     if details.get("DESCRIPTION"):
-        st.markdown(f"**Description:** {details['DESCRIPTION']}")
+        st.markdown("**Description:**")
+        st.markdown(details["DESCRIPTION"])
 
     st.divider()
 
