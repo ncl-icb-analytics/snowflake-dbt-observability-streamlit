@@ -108,8 +108,18 @@ def render(unique_id: str):
         st.metric("Success Rate", f"{pass_rate:.0f}%")
     with stat_cols[4]:
         if has_row_count:
-            row_count = latest_row_count_df.iloc[0]["ROW_COUNT"]
-            st.metric("Row Count", _format_row_count(row_count))
+            row_data = latest_row_count_df.iloc[0]
+            row_count = row_data["ROW_COUNT"]
+            row_change = row_data.get("ROW_CHANGE")
+            change_pct = row_data.get("CHANGE_PCT")
+
+            # Format delta string with sign
+            if row_change is not None and change_pct is not None:
+                delta_str = f"{'+' if row_change >= 0 else ''}{_format_row_count(int(row_change))} ({change_pct:+.1f}%)"
+                delta_color = "normal" if row_change >= 0 else "inverse"
+                st.metric("Row Count", _format_row_count(row_count), delta=delta_str, delta_color=delta_color)
+            else:
+                st.metric("Row Count", _format_row_count(row_count))
         else:
             st.metric("Row Count", "N/A")
 
@@ -157,8 +167,8 @@ def render(unique_id: str):
         st.info("No tests found for this model")
     else:
         for _, test_row in tests_df.iterrows():
-            pass_rate = test_row.get("PASS_RATE", 0) or 0
-            icon = "🟢" if pass_rate >= 0.95 else "🟠" if pass_rate >= 0.8 else "🔴"
+            latest_status = (test_row.get("LATEST_STATUS") or "").lower()
+            icon = "🟢" if latest_status == "pass" else "🔴"
 
             if st.button(f"{icon} {test_row['TEST_NAME']}", key=f"test_{test_row['TEST_UNIQUE_ID']}"):
                 st.session_state["selected_test"] = test_row["TEST_UNIQUE_ID"]

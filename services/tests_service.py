@@ -136,31 +136,32 @@ def get_flaky_tests(days: int = DEFAULT_LOOKBACK_DAYS, limit: int = 20):
 
 
 def get_tests_for_model(model_name: str, days: int = DEFAULT_LOOKBACK_DAYS):
-    """Get tests associated with a specific model."""
+    """Get tests associated with a specific model with latest status."""
     query = f"""
-    WITH test_stats AS (
+    WITH test_runs AS (
         SELECT
             test_unique_id,
             test_name,
             test_type,
             schema_name,
-            COUNT(*) as total_runs,
-            SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) as pass_count
+            status,
+            detected_at,
+            ROW_NUMBER() OVER (PARTITION BY test_unique_id ORDER BY detected_at DESC) as rn
         FROM {ELEMENTARY_SCHEMA}.elementary_test_results
         WHERE LOWER(table_name) = LOWER('{model_name}')
         AND detected_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
-        GROUP BY test_unique_id, test_name, test_type, schema_name
     )
     SELECT
         test_unique_id,
         test_name,
         test_type,
         schema_name,
-        total_runs,
-        pass_count,
-        ROUND(pass_count::FLOAT / NULLIF(total_runs, 0), 3) as pass_rate
-    FROM test_stats
-    ORDER BY pass_rate ASC NULLS LAST
+        status as latest_status
+    FROM test_runs
+    WHERE rn = 1
+    ORDER BY
+        CASE WHEN status IN ('fail', 'error') THEN 0 ELSE 1 END,
+        test_name
     """
     return run_query(query)
 

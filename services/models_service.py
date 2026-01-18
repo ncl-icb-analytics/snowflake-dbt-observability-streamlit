@@ -174,7 +174,7 @@ def get_model_details(unique_id: str):
 
 
 def get_model_execution_trend(unique_id: str, days: int = DEFAULT_LOOKBACK_DAYS):
-    """Get execution time trend for charting."""
+    """Get execution time trend for charting. Excludes skipped/error runs with 0 or null times."""
     query = f"""
     SELECT
         DATE_TRUNC('day', TRY_TO_TIMESTAMP(generated_at)) as run_date,
@@ -185,6 +185,8 @@ def get_model_execution_trend(unique_id: str, days: int = DEFAULT_LOOKBACK_DAYS)
     FROM {ELEMENTARY_SCHEMA}.dbt_run_results
     WHERE unique_id = '{unique_id}'
     AND TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    AND execution_time > 0
+    AND status = 'success'
     GROUP BY DATE_TRUNC('day', TRY_TO_TIMESTAMP(generated_at))
     ORDER BY run_date
     """
@@ -242,16 +244,30 @@ def get_model_row_count_history(model_name: str, days: int = DEFAULT_LOOKBACK_DA
 
 
 def get_model_latest_row_count(model_name: str):
-    """Get the most recent row count for a model."""
+    """Get the most recent row count for a model with change from previous."""
     query = f"""
+    WITH recent AS (
+        SELECT
+            model_name,
+            row_count,
+            run_started_at,
+            LAG(row_count) OVER (ORDER BY run_started_at) as prev_row_count
+        FROM {ELEMENTARY_SCHEMA}.ROW_COUNT_LOG
+        WHERE LOWER(model_name) = LOWER('{model_name}')
+        ORDER BY run_started_at DESC
+    )
     SELECT
         model_name,
         row_count,
         run_started_at,
-        recorded_at
-    FROM {ELEMENTARY_SCHEMA}.ROW_COUNT_LOG
-    WHERE LOWER(model_name) = LOWER('{model_name}')
-    ORDER BY run_started_at DESC
+        prev_row_count,
+        CASE WHEN prev_row_count > 0
+             THEN row_count - prev_row_count
+             ELSE NULL END as row_change,
+        CASE WHEN prev_row_count > 0
+             THEN ((row_count - prev_row_count)::FLOAT / prev_row_count) * 100
+             ELSE NULL END as change_pct
+    FROM recent
     LIMIT 1
     """
     return run_query(query)
