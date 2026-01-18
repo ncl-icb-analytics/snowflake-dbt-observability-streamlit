@@ -10,7 +10,7 @@ from services.models_service import (
     get_model_latest_row_count,
 )
 from services.tests_service import get_tests_for_model
-from components.charts import execution_time_chart, run_status_timeline, row_count_trend_chart
+from components.charts import execution_time_chart, run_status_timeline, row_count_trend_chart, row_count_change_chart
 from config import DEFAULT_LOOKBACK_DAYS
 
 
@@ -154,12 +154,19 @@ def render(unique_id: str):
         st.subheader("Execution Time Trend")
         st.altair_chart(execution_time_chart(trend_df), use_container_width=True)
 
-    # Row count trend (only for table models with row count data)
+    # Row count charts (only for table models with row count data)
     if has_row_count:
         row_count_df = get_model_row_count_history(details["NAME"], days)
         if not row_count_df.empty and len(row_count_df) > 1:
-            st.subheader("Row Count Trend")
-            st.altair_chart(row_count_trend_chart(row_count_df), use_container_width=True)
+            st.subheader("Row Count")
+            # Show both trend and change charts side by side
+            chart_col1, chart_col2 = st.columns(2)
+            with chart_col1:
+                st.caption("Total Rows")
+                st.altair_chart(row_count_trend_chart(row_count_df, height=200), use_container_width=True)
+            with chart_col2:
+                st.caption("Row Changes")
+                st.altair_chart(row_count_change_chart(row_count_df, height=200), use_container_width=True)
 
     # Related tests
     st.divider()
