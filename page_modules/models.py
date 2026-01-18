@@ -140,13 +140,13 @@ def _render_path_browser(total_models: int):
     with col2:
         days = st.selectbox("Time range", [7, 14, 30], index=0, format_func=lambda x: f"{x}d", key="models_browse_days")
 
-    # Build search pattern from folder
+    # Build search pattern from folder - use forward slashes to match DB paths
     if selected_folder == "All":
         search = ""
     else:
-        search = selected_folder.replace("/", "\\")  # Match Windows paths
+        search = selected_folder  # Keep forward slashes to match paths in DB
 
-    df = get_models_summary(days=days, search=search, show_all=True, limit=200)
+    df = get_models_summary(days=days, search=search, show_all=True, limit=500)
 
     if df.empty:
         st.info("No recent runs for models in this folder")
