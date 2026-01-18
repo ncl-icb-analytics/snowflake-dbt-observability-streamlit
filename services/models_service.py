@@ -173,15 +173,15 @@ def get_model_execution_trend(unique_id: str, days: int = DEFAULT_LOOKBACK_DAYS)
     """Get execution time trend for charting."""
     query = f"""
     SELECT
-        DATE_TRUNC('day', generated_at) as run_date,
+        DATE_TRUNC('day', TRY_TO_TIMESTAMP(generated_at)) as run_date,
         AVG(execution_time) as avg_time,
         MAX(execution_time) as max_time,
         MIN(execution_time) as min_time,
         COUNT(*) as run_count
     FROM {ELEMENTARY_SCHEMA}.dbt_run_results
     WHERE unique_id = '{unique_id}'
-    AND generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
-    GROUP BY DATE_TRUNC('day', generated_at)
+    AND TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    GROUP BY DATE_TRUNC('day', TRY_TO_TIMESTAMP(generated_at))
     ORDER BY run_date
     """
     return run_query(query)

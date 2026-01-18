@@ -54,7 +54,7 @@ def get_tests_summary(
     FROM test_stats s
     LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_tests t ON s.test_unique_id = t.unique_id
     WHERE s.rn = 1
-    ORDER BY s.pass_rate ASC NULLS LAST, s.total_runs DESC
+    ORDER BY (s.pass_count::FLOAT / NULLIF(s.total_runs, 0)) ASC NULLS LAST, s.total_runs DESC
     LIMIT {limit} OFFSET {offset}
     """
     return run_query(query)

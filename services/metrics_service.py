@@ -57,19 +57,20 @@ def get_recent_runs(limit: int = 10):
     )
     SELECT
         i.invocation_id,
-        i.generated_at,
+        i.created_at,
+        i.run_started_at,
+        i.run_completed_at,
         i.command,
-        i.dbt_version,
-        i.full_refresh,
         i.target_name,
         i.selected,
         COALESCE(s.total_models, 0) as models_run,
         COALESCE(s.success_count, 0) as success_count,
         COALESCE(s.fail_count, 0) as fail_count,
-        COALESCE(s.total_time, 0) as total_time
+        COALESCE(s.total_time, 0) as total_time,
+        TIMESTAMPDIFF('second', TRY_TO_TIMESTAMP(i.run_started_at), TRY_TO_TIMESTAMP(i.run_completed_at)) as duration_seconds
     FROM {ELEMENTARY_SCHEMA}.dbt_invocations i
     LEFT JOIN run_stats s ON i.invocation_id = s.invocation_id
-    ORDER BY i.generated_at DESC
+    ORDER BY i.created_at DESC
     LIMIT {limit}
     """
     return run_query(query)
