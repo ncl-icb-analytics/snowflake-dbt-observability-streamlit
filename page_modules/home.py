@@ -130,6 +130,7 @@ def render(search_filter: str = ""):
                     cmd = r_row["COMMAND"] or "dbt"
                     target = r_row["TARGET_NAME"] or ""
                     warehouse = r_row.get("WAREHOUSE") or ""
+                    selected = r_row.get("SELECTED") or ""
                     models_run = int(r_row.get("MODELS_RUN") or 0)
                     success = int(r_row.get("SUCCESS_COUNT") or 0)
                     fail = int(r_row.get("FAIL_COUNT") or 0)
@@ -141,7 +142,11 @@ def render(search_filter: str = ""):
                         info_parts.append(warehouse)
                     st.caption(" | ".join(p for p in info_parts if p))
 
-                    # Second line: run stats (use markdown for emoji rendering)
+                    # Show selection if present (truncate if too long)
+                    if selected:
+                        st.caption(_truncate(selected, 60))
+
+                    # Run stats (use markdown for emoji rendering)
                     if models_run > 0:
                         # Format duration nicely
                         if duration and duration > 0:
