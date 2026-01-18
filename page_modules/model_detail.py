@@ -1,5 +1,6 @@
 """Model detail page - Full view of a single model."""
 
+import pandas as pd
 import streamlit as st
 from services.models_service import (
     get_model_details,
@@ -113,8 +114,9 @@ def render(unique_id: str):
             row_change = row_data.get("ROW_CHANGE")
             change_pct = row_data.get("CHANGE_PCT")
 
-            # Format delta string with sign
-            if row_change is not None and change_pct is not None:
+            # Format delta string with sign (check for NaN as well as None)
+            has_delta = row_change is not None and change_pct is not None and not pd.isna(row_change) and not pd.isna(change_pct)
+            if has_delta:
                 delta_str = f"{'+' if row_change >= 0 else ''}{_format_row_count(int(row_change))} ({change_pct:+.1f}%)"
                 delta_color = "normal" if row_change >= 0 else "inverse"
                 st.metric("Row Count", _format_row_count(row_count), delta=delta_str, delta_color=delta_color)
