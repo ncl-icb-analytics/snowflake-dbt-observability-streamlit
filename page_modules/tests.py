@@ -47,13 +47,13 @@ def _render_all_tests(search_filter: str):
     for _, row in df.iterrows():
         pass_rate = row["PASS_RATE"] or 0
         if pass_rate >= 0.95:
-            icon = ":green_circle:"
+            icon = "🟢"
         elif pass_rate >= 0.8:
-            icon = ":orange_circle:"
+            icon = "🟠"
         else:
-            icon = ":red_circle:"
+            icon = "🔴"
 
-        flaky_badge = " :warning:" if row["IS_FLAKY"] else ""
+        flaky_badge = " ⚠️" if row["IS_FLAKY"] else ""
         # Use short_name if available
         short_name = row.get("SHORT_NAME") or row["TEST_NAME"]
         name = _truncate(short_name)
@@ -64,7 +64,7 @@ def _render_all_tests(search_filter: str):
             cols = st.columns([3, 1, 1, 1])
             with cols[0]:
                 st.markdown(f"{icon}{flaky_badge} **{name}**")
-                st.caption(f"{test_ns} | {model}")
+                st.caption(f"{model} | {test_ns}" if test_ns else model)
             with cols[1]:
                 st.caption("Pass Rate")
                 st.write(f"{pass_rate * 100:.0f}%")
@@ -112,7 +112,7 @@ def _render_flaky_tests():
         with st.container(border=True):
             cols = st.columns([3, 1, 1, 1])
             with cols[0]:
-                st.markdown(f":warning: **{name}**")
+                st.markdown(f"⚠️ **{name}**")
                 st.caption(f"{test_ns} | {model}" if test_ns else model)
             with cols[1]:
                 st.caption("Failure Rate")

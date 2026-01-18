@@ -75,8 +75,8 @@ def _render_test_failures(days: int, search_filter: str):
         with st.container(border=True):
             cols = st.columns([4, 1])
             with cols[0]:
-                st.markdown(f":red_circle: **{name}**")
-                st.caption(f"{test_ns} | {model}")
+                st.markdown(f"🔴 **{name}**")
+                st.caption(f"{model} | {test_ns}" if test_ns else model)
                 st.caption(f"{row['SCHEMA_NAME']} | {str(row['DETECTED_AT'])[:16]}")
             with cols[1]:
                 if st.button("View", key=f"alert_test_{row['TEST_UNIQUE_ID']}"):
@@ -100,7 +100,7 @@ def _render_model_failures(days: int, search_filter: str):
         with st.container(border=True):
             cols = st.columns([4, 1])
             with cols[0]:
-                st.markdown(f":red_circle: **{name}**")
+                st.markdown(f"🔴 **{name}**")
                 st.caption(f"{schema} | {row['STATUS']}")
                 if row["EXECUTION_TIME"]:
                     st.caption(f"{row['EXECUTION_TIME']:.1f}s | {str(row['GENERATED_AT'])[:16]}")

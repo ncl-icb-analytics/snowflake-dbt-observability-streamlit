@@ -21,6 +21,27 @@ def _truncate(text: str, max_len: int = 50) -> str:
     return text[:max_len] + "..." if len(text) > max_len else text
 
 
+def _format_duration(seconds) -> str:
+    """Format duration in human-readable form."""
+    if not seconds or seconds <= 0:
+        return ""
+    seconds = int(seconds)
+    if seconds >= 3600:
+        hours = seconds // 3600
+        mins = (seconds % 3600) // 60
+        if mins > 0:
+            return f"{hours}h {mins}m"
+        return f"{hours}h"
+    elif seconds >= 60:
+        mins = seconds // 60
+        secs = seconds % 60
+        if secs > 0 and mins < 10:
+            return f"{mins}m {secs}s"
+        return f"{mins}m"
+    else:
+        return f"{seconds}s"
+
+
 def render(search_filter: str = ""):
     st.title("dbt Project Health")
 
@@ -146,22 +167,13 @@ def render(search_filter: str = ""):
                     if selected:
                         st.caption(_truncate(selected, 60))
 
-                    # Run stats (use markdown for emoji rendering)
+                    # Run stats
                     if models_run > 0:
-                        # Format duration nicely
-                        if duration and duration > 0:
-                            if duration >= 3600:
-                                time_str = f"{duration / 3600:.1f}h"
-                            elif duration >= 60:
-                                time_str = f"{duration / 60:.1f}m"
-                            else:
-                                time_str = f"{duration:.0f}s"
-                        else:
-                            time_str = ""
+                        time_str = _format_duration(duration)
                         if fail > 0:
-                            st.markdown(f"{models_run} models | :green_circle: {success} :red_circle: {fail} | {time_str}")
+                            st.markdown(f"{models_run} models | 🟢 {success} 🔴 {fail} | {time_str}")
                         else:
-                            st.markdown(f"{models_run} models | :green_circle: {success} | {time_str}")
+                            st.markdown(f"{models_run} models | 🟢 {success} | {time_str}")
 
     st.divider()
 
@@ -173,9 +185,9 @@ def render(search_filter: str = ""):
             st.markdown("**Models**")
             st.caption(f"{total_models} total")
             if failed_models > 0:
-                st.markdown(f":red_circle: {failed_models} failed")
+                st.markdown(f"🔴 {failed_models} failed")
             else:
-                st.markdown(":green_circle: All healthy")
+                st.markdown("🟢 All healthy")
     with summary_cols[1]:
         with st.container(border=True):
             st.markdown("**Tests**")
@@ -187,9 +199,9 @@ def render(search_filter: str = ""):
         with st.container(border=True):
             st.markdown("**Alerts**")
             if total_failures > 0:
-                st.markdown(f":red_circle: {total_failures} active")
+                st.markdown(f"🔴 {total_failures} active")
             else:
-                st.markdown(":green_circle: None")
+                st.markdown("🟢 None")
     with summary_cols[3]:
         with st.container(border=True):
             st.markdown("**Performance**")

@@ -16,7 +16,8 @@ def get_models_summary(
     By default shows only models with issues (failed or slow).
     When show_all=True, shows ALL models from dbt_models table.
     """
-    search_filter = f"AND LOWER(m.unique_id) LIKE LOWER('%{search}%')" if search else ""
+    search_filter = f"AND (LOWER(m.unique_id) LIKE LOWER('%{search}%') OR LOWER(COALESCE(m.original_path, m.path, '')) LIKE LOWER('%{search}%'))" if search else ""
+    search_filter_run = f"AND (LOWER(r.unique_id) LIKE LOWER('%{search}%') OR LOWER(COALESCE(m.original_path, m.path, '')) LIKE LOWER('%{search}%'))" if search else ""
 
     if show_all:
         # Show all models, including those without recent runs
@@ -46,6 +47,7 @@ def get_models_summary(
             m.name,
             m.schema_name,
             m.database_name,
+            COALESCE(m.original_path, m.path) as model_path,
             COALESCE(r.status, 'no_runs') as latest_status,
             r.generated_at as last_run,
             r.avg_execution_time,
@@ -81,7 +83,7 @@ def get_models_summary(
             LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.unique_id = m.unique_id
             WHERE r.generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
             AND r.resource_type = 'model'
-            {search_filter.replace('m.unique_id', 'r.unique_id')}
+            {search_filter_run}
         ),
         percentiles AS (
             SELECT PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY avg_execution_time) as p90
@@ -205,5 +207,17 @@ def get_schema_list():
     FROM {ELEMENTARY_SCHEMA}.dbt_models
     WHERE schema_name IS NOT NULL
     ORDER BY schema_name
+    """
+    return run_query(query)
+
+
+def get_model_paths():
+    """Get all unique model paths for folder navigation."""
+    query = f"""
+    SELECT DISTINCT
+        COALESCE(original_path, path) as model_path
+    FROM {ELEMENTARY_SCHEMA}.dbt_models
+    WHERE COALESCE(original_path, path) IS NOT NULL
+    ORDER BY model_path
     """
     return run_query(query)

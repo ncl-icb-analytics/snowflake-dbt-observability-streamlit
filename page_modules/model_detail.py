@@ -91,7 +91,7 @@ def render(unique_id: str):
 
     # Recent runs with details
     for _, row in history_df.head(10).iterrows():
-        status_icon = ":green_circle:" if row["STATUS"] == "success" else ":red_circle:"
+        status_icon = "🟢" if row["STATUS"] == "success" else "🔴"
         time_str = f"{row['EXECUTION_TIME']:.1f}s" if row["EXECUTION_TIME"] else "N/A"
 
         with st.container(border=True):
@@ -121,7 +121,7 @@ def render(unique_id: str):
     else:
         for _, test_row in tests_df.iterrows():
             pass_rate = test_row.get("PASS_RATE", 0) or 0
-            icon = ":green_circle:" if pass_rate >= 0.95 else ":orange_circle:" if pass_rate >= 0.8 else ":red_circle:"
+            icon = "🟢" if pass_rate >= 0.95 else "🟠" if pass_rate >= 0.8 else "🔴"
 
             if st.button(f"{icon} {test_row['TEST_NAME']}", key=f"test_{test_row['TEST_UNIQUE_ID']}"):
                 st.session_state["selected_test"] = test_row["TEST_UNIQUE_ID"]

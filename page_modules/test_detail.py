@@ -106,7 +106,7 @@ def render(test_unique_id: str):
     st.subheader("Run History")
 
     for _, row in history_df.iterrows():
-        status_icon = ":green_circle:" if row["STATUS"] == "pass" else ":red_circle:"
+        status_icon = "🟢" if row["STATUS"] == "pass" else "🔴"
 
         with st.container(border=True):
             cols = st.columns([2, 1])
