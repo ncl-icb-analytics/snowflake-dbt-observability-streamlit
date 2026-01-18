@@ -1,10 +1,30 @@
 """Model detail page - Full view of a single model."""
 
 import streamlit as st
-from services.models_service import get_model_details, get_model_run_history, get_model_execution_trend
+from services.models_service import (
+    get_model_details,
+    get_model_run_history,
+    get_model_execution_trend,
+    get_model_row_count_history,
+    get_model_latest_row_count,
+)
 from services.tests_service import get_tests_for_model
-from components.charts import execution_time_chart, run_status_timeline
+from components.charts import execution_time_chart, run_status_timeline, row_count_trend_chart
 from config import DEFAULT_LOOKBACK_DAYS
+
+
+def _format_row_count(count) -> str:
+    """Format row count with K/M/B suffixes."""
+    if count is None:
+        return "N/A"
+    count = int(count)
+    if count >= 1_000_000_000:
+        return f"{count / 1_000_000_000:.1f}B"
+    elif count >= 1_000_000:
+        return f"{count / 1_000_000:.1f}M"
+    elif count >= 1_000:
+        return f"{count / 1_000:.1f}K"
+    return str(count)
 
 
 def render(unique_id: str):
@@ -71,10 +91,13 @@ def render(unique_id: str):
     success_runs = len(history_df[history_df["STATUS"] == "success"])
     avg_time = history_df["EXECUTION_TIME"].mean()
 
-    stat_cols = st.columns(4)
+    # Get latest row count (only for table models)
+    latest_row_count_df = get_model_latest_row_count(details["NAME"])
+    has_row_count = not latest_row_count_df.empty
+
+    stat_cols = st.columns(5)
     with stat_cols[0]:
         status = latest["STATUS"].upper()
-        color = "green" if status == "SUCCESS" else "red"
         st.metric("Last Status", status)
     with stat_cols[1]:
         st.metric("Avg Time", f"{avg_time:.1f}s" if avg_time else "N/A")
@@ -83,6 +106,12 @@ def render(unique_id: str):
     with stat_cols[3]:
         pass_rate = (success_runs / total_runs * 100) if total_runs > 0 else 0
         st.metric("Success Rate", f"{pass_rate:.0f}%")
+    with stat_cols[4]:
+        if has_row_count:
+            row_count = latest_row_count_df.iloc[0]["ROW_COUNT"]
+            st.metric("Row Count", _format_row_count(row_count))
+        else:
+            st.metric("Row Count", "N/A")
 
     st.caption(f"Last run: {latest['GENERATED_AT']}")
 
@@ -112,6 +141,13 @@ def render(unique_id: str):
     if not trend_df.empty and len(trend_df) > 1:
         st.subheader("Execution Time Trend")
         st.altair_chart(execution_time_chart(trend_df), use_container_width=True)
+
+    # Row count trend (only for table models with row count data)
+    if has_row_count:
+        row_count_df = get_model_row_count_history(details["NAME"], days)
+        if not row_count_df.empty and len(row_count_df) > 1:
+            st.subheader("Row Count Trend")
+            st.altair_chart(row_count_trend_chart(row_count_df), use_container_width=True)
 
     # Related tests
     st.divider()

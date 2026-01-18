@@ -83,7 +83,7 @@ def run_status_timeline(df: pd.DataFrame, height: int = 100) -> alt.Chart:
     return chart
 
 
-def growth_trend_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
+def row_count_trend_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
     """Line chart for table row count trends."""
     if df.empty:
         return alt.Chart().mark_text().encode(text=alt.value("No data"))
@@ -92,9 +92,9 @@ def growth_trend_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
         alt.Chart(df)
         .mark_line(point=True)
         .encode(
-            x=alt.X("METRIC_DATE:T", title="Date"),
+            x=alt.X("RUN_STARTED_AT:T", title="Date"),
             y=alt.Y("ROW_COUNT:Q", title="Row Count"),
-            tooltip=["METRIC_DATE:T", "ROW_COUNT:Q"],
+            tooltip=["RUN_STARTED_AT:T", "ROW_COUNT:Q"],
         )
         .properties(height=height)
     )

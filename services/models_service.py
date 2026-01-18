@@ -221,3 +221,35 @@ def get_model_paths():
     ORDER BY model_path
     """
     return run_query(query)
+
+
+def get_model_row_count_history(model_name: str, days: int = DEFAULT_LOOKBACK_DAYS):
+    """Get row count history for a model from ROW_COUNT_LOG table."""
+    query = f"""
+    SELECT
+        model_name,
+        row_count,
+        run_started_at,
+        recorded_at
+    FROM {ELEMENTARY_SCHEMA}.ROW_COUNT_LOG
+    WHERE LOWER(model_name) = LOWER('{model_name}')
+    AND run_started_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    ORDER BY run_started_at DESC
+    """
+    return run_query(query)
+
+
+def get_model_latest_row_count(model_name: str):
+    """Get the most recent row count for a model."""
+    query = f"""
+    SELECT
+        model_name,
+        row_count,
+        run_started_at,
+        recorded_at
+    FROM {ELEMENTARY_SCHEMA}.ROW_COUNT_LOG
+    WHERE LOWER(model_name) = LOWER('{model_name}')
+    ORDER BY run_started_at DESC
+    LIMIT 1
+    """
+    return run_query(query)
