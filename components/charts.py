@@ -102,7 +102,7 @@ def row_count_trend_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
 
 
 def row_count_change_chart(df: pd.DataFrame, height: int = 250) -> alt.Chart:
-    """Area chart showing row count changes with green for growth, red for reduction."""
+    """Bar chart showing row count changes with green for growth, red for reduction."""
     if df.empty or len(df) < 2:
         return alt.Chart().mark_text().encode(text=alt.value("Not enough data"))
 
@@ -116,53 +116,10 @@ def row_count_change_chart(df: pd.DataFrame, height: int = 250) -> alt.Chart:
     if df.empty:
         return alt.Chart().mark_text().encode(text=alt.value("Not enough data"))
 
-    # Create base chart
-    base = alt.Chart(df).encode(
+    # Bar chart with conditional coloring
+    bars = alt.Chart(df).mark_bar().encode(
         x=alt.X("RUN_STARTED_AT:T", title="Date"),
-    )
-
-    # Area for positive changes (green)
-    positive = base.transform_filter(
-        alt.datum.CHANGE >= 0
-    ).mark_area(
-        opacity=0.6, line={"color": "#28a745"}
-    ).encode(
         y=alt.Y("CHANGE:Q", title="Row Change"),
-        y2=alt.value(height / 2),
-        color=alt.value("#28a745"),
-        tooltip=[
-            alt.Tooltip("RUN_STARTED_AT:T", title="Date"),
-            alt.Tooltip("CHANGE:Q", title="Change", format=","),
-            alt.Tooltip("CHANGE_PCT:Q", title="Change %", format="+.1f"),
-            alt.Tooltip("ROW_COUNT:Q", title="Total Rows", format=","),
-        ],
-    )
-
-    # Area for negative changes (red)
-    negative = base.transform_filter(
-        alt.datum.CHANGE < 0
-    ).mark_area(
-        opacity=0.6, line={"color": "#dc3545"}
-    ).encode(
-        y=alt.Y("CHANGE:Q", title="Row Change"),
-        y2=alt.value(height / 2),
-        color=alt.value("#dc3545"),
-        tooltip=[
-            alt.Tooltip("RUN_STARTED_AT:T", title="Date"),
-            alt.Tooltip("CHANGE:Q", title="Change", format=","),
-            alt.Tooltip("CHANGE_PCT:Q", title="Change %", format="+.1f"),
-            alt.Tooltip("ROW_COUNT:Q", title="Total Rows", format=","),
-        ],
-    )
-
-    # Zero line
-    zero_line = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(
-        strokeDash=[4, 4], color="#666"
-    ).encode(y="y:Q")
-
-    # Points on the line for each data point
-    points = base.mark_circle(size=50).encode(
-        y=alt.Y("CHANGE:Q"),
         color=alt.condition(
             alt.datum.CHANGE >= 0,
             alt.value("#28a745"),
@@ -176,7 +133,12 @@ def row_count_change_chart(df: pd.DataFrame, height: int = 250) -> alt.Chart:
         ],
     )
 
-    return (positive + negative + zero_line + points).properties(height=height)
+    # Zero line
+    zero_line = alt.Chart(pd.DataFrame({"y": [0]})).mark_rule(
+        strokeDash=[4, 4], color="#666"
+    ).encode(y="y:Q")
+
+    return (bars + zero_line).properties(height=height)
 
 
 def top_models_bar_chart(df: pd.DataFrame, height: int = 400) -> alt.Chart:
