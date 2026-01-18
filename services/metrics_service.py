@@ -42,7 +42,7 @@ def get_dashboard_kpis(days: int = DEFAULT_LOOKBACK_DAYS):
 
 
 def get_recent_runs(limit: int = 10):
-    """Get most recent dbt invocations with run stats."""
+    """Get most recent dbt invocations with run stats and warehouse info."""
     query = f"""
     WITH run_stats AS (
         SELECT
@@ -62,7 +62,8 @@ def get_recent_runs(limit: int = 10):
         i.run_completed_at,
         i.command,
         i.target_name,
-        i.selected,
+        i.dbt_user,
+        TRY_PARSE_JSON(i.target_adapter_specific_fields):warehouse::VARCHAR as warehouse,
         COALESCE(s.total_models, 0) as models_run,
         COALESCE(s.success_count, 0) as success_count,
         COALESCE(s.fail_count, 0) as fail_count,
