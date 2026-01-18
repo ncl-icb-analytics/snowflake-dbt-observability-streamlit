@@ -63,6 +63,7 @@ def get_recent_runs(limit: int = 10):
         i.command,
         i.target_name,
         i.dbt_user,
+        i.selected,
         TRY_PARSE_JSON(i.target_adapter_specific_fields):warehouse::VARCHAR as warehouse,
         COALESCE(s.total_models, 0) as models_run,
         COALESCE(s.success_count, 0) as success_count,
