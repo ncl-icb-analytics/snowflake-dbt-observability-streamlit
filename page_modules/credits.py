@@ -92,7 +92,7 @@ def _get_performance_summary(days: int = DEFAULT_LOOKBACK_DAYS):
         COUNT(*) as total_runs,
         AVG(execution_time) as avg_execution_time
     FROM {ELEMENTARY_SCHEMA}.dbt_run_results
-    WHERE TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
     AND status = 'success'
     AND resource_type = 'model'
     """
@@ -114,7 +114,7 @@ def _get_slowest_models(days: int = DEFAULT_LOOKBACK_DAYS, search: str = "", lim
         COUNT(*) as run_count
     FROM {ELEMENTARY_SCHEMA}.dbt_run_results r
     LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.unique_id = m.unique_id
-    WHERE TRY_TO_TIMESTAMP(r.generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    WHERE r.generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
     AND r.status = 'success'
     AND r.resource_type = 'model'
     {search_filter}
@@ -129,14 +129,14 @@ def _get_model_time_trend(unique_id: str, days: int = DEFAULT_LOOKBACK_DAYS):
     """Get execution time trend for a specific model."""
     query = f"""
     SELECT
-        DATE_TRUNC('day', TRY_TO_TIMESTAMP(generated_at)) as run_date,
+        DATE_TRUNC('day', generated_at) as run_date,
         AVG(execution_time) as avg_time,
         COUNT(*) as run_count
     FROM {ELEMENTARY_SCHEMA}.dbt_run_results
     WHERE unique_id = '{unique_id}'
-    AND TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    AND generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
     AND status = 'success'
-    GROUP BY DATE_TRUNC('day', TRY_TO_TIMESTAMP(generated_at))
+    GROUP BY DATE_TRUNC('day', generated_at)
     ORDER BY run_date
     """
     return run_query(query)

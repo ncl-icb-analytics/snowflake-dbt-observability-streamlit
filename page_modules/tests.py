@@ -54,14 +54,17 @@ def _render_all_tests(search_filter: str):
             icon = ":red_circle:"
 
         flaky_badge = " :warning:" if row["IS_FLAKY"] else ""
-        name = _truncate(row["TEST_NAME"])
+        # Use short_name if available
+        short_name = row.get("SHORT_NAME") or row["TEST_NAME"]
+        name = _truncate(short_name)
         model = row["TABLE_NAME"] or "N/A"
+        test_ns = row.get("TEST_NAMESPACE") or row["TEST_TYPE"] or ""
 
         with st.container(border=True):
             cols = st.columns([3, 1, 1, 1])
             with cols[0]:
                 st.markdown(f"{icon}{flaky_badge} **{name}**")
-                st.caption(f"{model} | {row['TEST_TYPE']}")
+                st.caption(f"{test_ns} | {model}")
             with cols[1]:
                 st.caption("Pass Rate")
                 st.write(f"{pass_rate * 100:.0f}%")
@@ -100,14 +103,17 @@ def _render_flaky_tests():
 
     # Clickable list
     for _, row in df.iterrows():
-        name = _truncate(row["TEST_NAME"])
+        short_name = row.get("SHORT_NAME") or row["TEST_NAME"]
+        name = _truncate(short_name)
         failure_rate = row["FAILURE_RATE"] * 100
+        test_ns = row.get("TEST_NAMESPACE") or ""
+        model = row["TABLE_NAME"] or "N/A"
 
         with st.container(border=True):
             cols = st.columns([3, 1, 1, 1])
             with cols[0]:
                 st.markdown(f":warning: **{name}**")
-                st.caption(row["TABLE_NAME"] or "N/A")
+                st.caption(f"{test_ns} | {model}" if test_ns else model)
             with cols[1]:
                 st.caption("Failure Rate")
                 st.write(f"{failure_rate:.0f}%")

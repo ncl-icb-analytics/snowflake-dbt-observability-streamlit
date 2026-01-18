@@ -66,14 +66,17 @@ def _render_test_failures(days: int, search_filter: str):
         return
 
     for _, row in df.iterrows():
-        name = _truncate(row["TEST_NAME"])
+        # Use short_name if available, fall back to test_name
+        short_name = row.get("SHORT_NAME") or row["TEST_NAME"]
+        name = _truncate(short_name)
         model = row["TABLE_NAME"] or "N/A"
+        test_ns = row.get("TEST_NAMESPACE") or row["TEST_TYPE"] or ""
 
         with st.container(border=True):
             cols = st.columns([4, 1])
             with cols[0]:
                 st.markdown(f":red_circle: **{name}**")
-                st.caption(f"{model} | {row['TEST_TYPE']}")
+                st.caption(f"{test_ns} | {model}")
                 st.caption(f"{row['SCHEMA_NAME']} | {str(row['DETECTED_AT'])[:16]}")
             with cols[1]:
                 if st.button("View", key=f"alert_test_{row['TEST_UNIQUE_ID']}"):

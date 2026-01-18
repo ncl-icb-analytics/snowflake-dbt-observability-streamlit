@@ -26,12 +26,12 @@ def get_models_summary(
                 unique_id,
                 status,
                 execution_time,
-                TRY_TO_TIMESTAMP(generated_at) as generated_at,
-                ROW_NUMBER() OVER (PARTITION BY unique_id ORDER BY TRY_TO_TIMESTAMP(generated_at) DESC) as rn,
+                generated_at,
+                ROW_NUMBER() OVER (PARTITION BY unique_id ORDER BY generated_at DESC) as rn,
                 AVG(execution_time) OVER (PARTITION BY unique_id) as avg_execution_time,
                 COUNT(*) OVER (PARTITION BY unique_id) as run_count
             FROM {ELEMENTARY_SCHEMA}.dbt_run_results
-            WHERE TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+            WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
             AND resource_type = 'model'
         ),
         latest_runs AS (
@@ -73,13 +73,13 @@ def get_models_summary(
                 m.database_name,
                 r.status,
                 r.execution_time,
-                TRY_TO_TIMESTAMP(r.generated_at) as generated_at,
-                ROW_NUMBER() OVER (PARTITION BY r.unique_id ORDER BY TRY_TO_TIMESTAMP(r.generated_at) DESC) as rn,
+                r.generated_at,
+                ROW_NUMBER() OVER (PARTITION BY r.unique_id ORDER BY r.generated_at DESC) as rn,
                 AVG(r.execution_time) OVER (PARTITION BY r.unique_id) as avg_execution_time,
                 COUNT(*) OVER (PARTITION BY r.unique_id) as run_count
             FROM {ELEMENTARY_SCHEMA}.dbt_run_results r
             LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.unique_id = m.unique_id
-            WHERE TRY_TO_TIMESTAMP(r.generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+            WHERE r.generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
             AND r.resource_type = 'model'
             {search_filter.replace('m.unique_id', 'r.unique_id')}
         ),
@@ -87,7 +87,7 @@ def get_models_summary(
             SELECT PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY avg_execution_time) as p90
             FROM (SELECT DISTINCT unique_id, AVG(execution_time) as avg_execution_time
                   FROM {ELEMENTARY_SCHEMA}.dbt_run_results
-                  WHERE TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+                  WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
                   AND resource_type = 'model'
                   GROUP BY unique_id)
         )
@@ -133,7 +133,7 @@ def get_model_run_history(unique_id: str, days: int = DEFAULT_LOOKBACK_DAYS):
         name,
         status,
         execution_time,
-        TRY_TO_TIMESTAMP(generated_at) as generated_at,
+        generated_at,
         compile_started_at,
         compile_completed_at,
         execute_started_at,
@@ -141,8 +141,8 @@ def get_model_run_history(unique_id: str, days: int = DEFAULT_LOOKBACK_DAYS):
         message
     FROM {ELEMENTARY_SCHEMA}.dbt_run_results
     WHERE unique_id = '{unique_id}'
-    AND TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
-    ORDER BY TRY_TO_TIMESTAMP(generated_at) DESC
+    AND generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    ORDER BY generated_at DESC
     """
     return run_query(query)
 
@@ -173,16 +173,27 @@ def get_model_execution_trend(unique_id: str, days: int = DEFAULT_LOOKBACK_DAYS)
     """Get execution time trend for charting."""
     query = f"""
     SELECT
-        DATE_TRUNC('day', TRY_TO_TIMESTAMP(generated_at)) as run_date,
+        DATE_TRUNC('day', generated_at) as run_date,
         AVG(execution_time) as avg_time,
         MAX(execution_time) as max_time,
         MIN(execution_time) as min_time,
         COUNT(*) as run_count
     FROM {ELEMENTARY_SCHEMA}.dbt_run_results
     WHERE unique_id = '{unique_id}'
-    AND TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
-    GROUP BY DATE_TRUNC('day', TRY_TO_TIMESTAMP(generated_at))
+    AND generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    GROUP BY DATE_TRUNC('day', generated_at)
     ORDER BY run_date
+    """
+    return run_query(query)
+
+
+def get_model_by_name(model_name: str):
+    """Get model unique_id by name."""
+    query = f"""
+    SELECT unique_id, name, schema_name
+    FROM {ELEMENTARY_SCHEMA}.dbt_models
+    WHERE LOWER(name) = LOWER('{model_name}')
+    LIMIT 1
     """
     return run_query(query)
 

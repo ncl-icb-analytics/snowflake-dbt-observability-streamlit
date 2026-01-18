@@ -1,7 +1,7 @@
 """Home page - Overview dashboard with KPIs."""
 
 import streamlit as st
-from services.metrics_service import get_dashboard_kpis, get_recent_runs, get_top_failures, get_project_totals
+from services.metrics_service import get_dashboard_kpis, get_recent_runs, get_top_failures, get_project_totals, get_total_execution_time
 
 
 def _format_timestamp(ts):
@@ -53,6 +53,10 @@ def render(search_filter: str = ""):
 
     st.divider()
 
+    # Get total execution time
+    exec_time_df = get_total_execution_time()
+    total_exec_time = exec_time_df.iloc[0]["TOTAL_TIME"] if not exec_time_df.empty else 0
+
     # KPI row - 6 metrics
     cols = st.columns(6)
     with cols[0]:
@@ -64,8 +68,10 @@ def render(search_filter: str = ""):
     with cols[3]:
         st.metric("Total Tests", total_tests)
     with cols[4]:
-        avg_time = row["AVG_EXECUTION_TIME"]
-        st.metric("Avg Runtime", f"{avg_time:.1f}s" if avg_time else "N/A")
+        if total_exec_time:
+            st.metric("Total Runtime", f"{total_exec_time / 60:.1f} min")
+        else:
+            st.metric("Total Runtime", "N/A")
     with cols[5]:
         st.metric("Last Run", _format_timestamp(row["LAST_RUN_TIME"]))
 
@@ -82,7 +88,6 @@ def render(search_filter: str = ""):
         else:
             for _, f_row in failures.iterrows():
                 icon = ":test_tube:" if f_row["TYPE"] == "test" else ":package:"
-                schema = f_row["SCHEMA_NAME"] or "unknown"
                 name = _truncate(f_row["NAME"])
                 unique_id = f_row["UNIQUE_ID"]
 
@@ -90,7 +95,16 @@ def render(search_filter: str = ""):
                     col1, col2 = st.columns([4, 1])
                     with col1:
                         st.markdown(f"{icon} **{name}**")
-                        st.caption(f"{schema} | {_format_timestamp(f_row['FAILED_AT'])}")
+                        # Show test namespace and model for tests, schema for models
+                        if f_row["TYPE"] == "test":
+                            test_ns = f_row.get("TEST_NAMESPACE") or ""
+                            model = f_row.get("MODEL_NAME") or ""
+                            info_parts = [p for p in [test_ns, model] if p]
+                            st.caption(" | ".join(info_parts) if info_parts else "")
+                        else:
+                            schema = f_row["SCHEMA_NAME"] or "unknown"
+                            st.caption(schema)
+                        st.caption(_format_timestamp(f_row['FAILED_AT']))
                     with col2:
                         if f_row["TYPE"] == "test":
                             if st.button("View", key=f"home_test_{unique_id}"):
@@ -114,33 +128,48 @@ def render(search_filter: str = ""):
                     st.markdown(f"**{_format_timestamp(r_row['GENERATED_AT'])}**")
                     cmd = r_row["COMMAND"] or "dbt"
                     target = r_row["TARGET_NAME"] or ""
+                    models_run = int(r_row.get("MODELS_RUN") or 0)
+                    success = int(r_row.get("SUCCESS_COUNT") or 0)
+                    fail = int(r_row.get("FAIL_COUNT") or 0)
+                    total_time = r_row.get("TOTAL_TIME") or 0
+
+                    # First line: command and target
                     st.caption(f"{cmd} | {target}")
+                    # Second line: run stats
+                    if models_run > 0:
+                        time_str = f"{total_time:.0f}s" if total_time else ""
+                        fail_str = f":red_circle: {fail}" if fail > 0 else ""
+                        st.caption(f"{models_run} models | :green_circle: {success} {fail_str} | {time_str}")
 
     st.divider()
 
-    # Quick links section
-    st.subheader("Quick Links")
-    link_cols = st.columns(4)
-    with link_cols[0]:
+    # Summary cards section
+    st.subheader("Summary")
+    summary_cols = st.columns(4)
+    with summary_cols[0]:
         with st.container(border=True):
             st.markdown("**Models**")
-            st.caption(f"{total_models} total in project")
-            st.caption(f"{models_run} ran recently")
+            st.caption(f"{total_models} total")
             if failed_models > 0:
                 st.caption(f":red_circle: {failed_models} failed")
-    with link_cols[1]:
+            else:
+                st.caption(":green_circle: All healthy")
+    with summary_cols[1]:
         with st.container(border=True):
             st.markdown("**Tests**")
-            st.caption(f"{total_tests} total in project")
+            st.caption(f"{total_tests} total")
             if tests_run > 0:
                 pass_rate = ((tests_run - failed_tests) / tests_run) * 100
                 st.caption(f"{pass_rate:.0f}% passing")
-    with link_cols[2]:
+    with summary_cols[2]:
         with st.container(border=True):
             st.markdown("**Alerts**")
-            st.caption(f"{total_failures} active")
-    with link_cols[3]:
+            if total_failures > 0:
+                st.caption(f":red_circle: {total_failures} active")
+            else:
+                st.caption(":green_circle: None")
+    with summary_cols[3]:
         with st.container(border=True):
             st.markdown("**Performance**")
-            avg = row["AVG_EXECUTION_TIME"]
-            st.caption(f"Avg: {avg:.1f}s" if avg else "N/A")
+            if total_exec_time:
+                st.caption(f"{total_exec_time / 60:.1f} min total")

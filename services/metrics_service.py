@@ -20,15 +20,15 @@ def get_dashboard_kpis(days: int = DEFAULT_LOOKBACK_DAYS):
             unique_id,
             status,
             execution_time,
-            ROW_NUMBER() OVER (PARTITION BY unique_id ORDER BY TRY_TO_TIMESTAMP(generated_at) DESC) as rn
+            ROW_NUMBER() OVER (PARTITION BY unique_id ORDER BY generated_at DESC) as rn
         FROM {ELEMENTARY_SCHEMA}.dbt_run_results
-        WHERE TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+        WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
         AND resource_type = 'model'
     ),
     last_run AS (
-        SELECT MAX(TRY_TO_TIMESTAMP(generated_at)) as last_run_time
+        SELECT MAX(generated_at) as last_run_time
         FROM {ELEMENTARY_SCHEMA}.dbt_run_results
-        WHERE TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+        WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
     )
     SELECT
         (SELECT COUNT(*) FROM test_ranked WHERE rn = 1 AND status IN ('fail', 'error')) as failed_tests,
@@ -42,53 +42,74 @@ def get_dashboard_kpis(days: int = DEFAULT_LOOKBACK_DAYS):
 
 
 def get_recent_runs(limit: int = 10):
-    """Get most recent dbt invocations."""
+    """Get most recent dbt invocations with run stats."""
     query = f"""
+    WITH run_stats AS (
+        SELECT
+            invocation_id,
+            COUNT(*) as total_models,
+            SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as success_count,
+            SUM(CASE WHEN status IN ('fail', 'error') THEN 1 ELSE 0 END) as fail_count,
+            SUM(execution_time) as total_time
+        FROM {ELEMENTARY_SCHEMA}.dbt_run_results
+        WHERE resource_type = 'model'
+        GROUP BY invocation_id
+    )
     SELECT
-        invocation_id,
-        generated_at,
-        command,
-        dbt_version,
-        full_refresh,
-        target_name,
-        selected
-    FROM {ELEMENTARY_SCHEMA}.dbt_invocations
-    ORDER BY generated_at DESC
+        i.invocation_id,
+        i.generated_at,
+        i.command,
+        i.dbt_version,
+        i.full_refresh,
+        i.target_name,
+        i.selected,
+        COALESCE(s.total_models, 0) as models_run,
+        COALESCE(s.success_count, 0) as success_count,
+        COALESCE(s.fail_count, 0) as fail_count,
+        COALESCE(s.total_time, 0) as total_time
+    FROM {ELEMENTARY_SCHEMA}.dbt_invocations i
+    LEFT JOIN run_stats s ON i.invocation_id = s.invocation_id
+    ORDER BY i.generated_at DESC
     LIMIT {limit}
     """
     return run_query(query)
 
 
 def get_top_failures(limit: int = 5):
-    """Get top current failures for 'needs attention' section with IDs for navigation."""
+    """Get top current failures for 'needs attention' section with cleaner names."""
     query = f"""
     WITH test_failures AS (
         SELECT
-            test_unique_id as unique_id,
-            test_name as name,
+            r.test_unique_id as unique_id,
+            COALESCE(t.short_name, r.test_name) as name,
             'test' as type,
-            detected_at as failed_at,
-            schema_name,
-            ROW_NUMBER() OVER (PARTITION BY test_unique_id ORDER BY detected_at DESC) as rn
-        FROM {ELEMENTARY_SCHEMA}.elementary_test_results
-        WHERE detected_at >= DATEADD(day, -7, CURRENT_TIMESTAMP())
-        AND status IN ('fail', 'error')
+            r.detected_at as failed_at,
+            r.schema_name,
+            COALESCE(t.test_namespace, r.test_type) as test_namespace,
+            r.table_name as model_name,
+            ROW_NUMBER() OVER (PARTITION BY r.test_unique_id ORDER BY r.detected_at DESC) as rn
+        FROM {ELEMENTARY_SCHEMA}.elementary_test_results r
+        LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_tests t ON r.test_unique_id = t.unique_id
+        WHERE r.detected_at >= DATEADD(day, -7, CURRENT_TIMESTAMP())
+        AND r.status IN ('fail', 'error')
     ),
     model_failures AS (
         SELECT
             r.unique_id,
             r.name,
             'model' as type,
-            TRY_TO_TIMESTAMP(r.generated_at) as failed_at,
+            r.generated_at as failed_at,
             m.schema_name,
-            ROW_NUMBER() OVER (PARTITION BY r.unique_id ORDER BY TRY_TO_TIMESTAMP(r.generated_at) DESC) as rn
+            NULL as test_namespace,
+            NULL as model_name,
+            ROW_NUMBER() OVER (PARTITION BY r.unique_id ORDER BY r.generated_at DESC) as rn
         FROM {ELEMENTARY_SCHEMA}.dbt_run_results r
         LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.unique_id = m.unique_id
-        WHERE TRY_TO_TIMESTAMP(r.generated_at) >= DATEADD(day, -7, CURRENT_TIMESTAMP())
+        WHERE r.generated_at >= DATEADD(day, -7, CURRENT_TIMESTAMP())
         AND r.status IN ('fail', 'error')
         AND r.resource_type = 'model'
     )
-    SELECT unique_id, name, type, failed_at, schema_name
+    SELECT unique_id, name, type, failed_at, schema_name, test_namespace, model_name
     FROM (
         SELECT * FROM test_failures WHERE rn = 1
         UNION ALL
@@ -106,5 +127,16 @@ def get_project_totals():
     SELECT
         (SELECT COUNT(*) FROM {ELEMENTARY_SCHEMA}.dbt_models) as total_models,
         (SELECT COUNT(DISTINCT test_unique_id) FROM {ELEMENTARY_SCHEMA}.elementary_test_results) as total_tests
+    """
+    return run_query(query)
+
+
+def get_total_execution_time(days: int = DEFAULT_LOOKBACK_DAYS):
+    """Get total execution time for recent runs."""
+    query = f"""
+    SELECT SUM(execution_time) as total_time
+    FROM {ELEMENTARY_SCHEMA}.dbt_run_results
+    WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    AND resource_type = 'model'
     """
     return run_query(query)
