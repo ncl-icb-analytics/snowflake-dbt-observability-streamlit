@@ -1,7 +1,7 @@
 """Home page - Overview dashboard with KPIs."""
 
 import streamlit as st
-from services.metrics_service import get_dashboard_kpis, get_recent_runs, get_top_failures
+from services.metrics_service import get_dashboard_kpis, get_recent_runs, get_top_failures, get_project_totals
 
 
 def _format_timestamp(ts):
@@ -29,12 +29,21 @@ def render(search_filter: str = ""):
         st.warning("No data available")
         return
 
+    # Get total project counts (all models/tests, not just recent runs)
+    totals = get_project_totals()
+    if not totals.empty:
+        total_models = int(totals.iloc[0]["TOTAL_MODELS"] or 0)
+        total_tests = int(totals.iloc[0]["TOTAL_TESTS"] or 0)
+    else:
+        total_models = 0
+        total_tests = 0
+
     row = kpis.iloc[0]
     failed_tests = int(row["FAILED_TESTS"] or 0)
     failed_models = int(row["FAILED_MODELS"] or 0)
     total_failures = failed_tests + failed_models
-    total_tests = int(row.get("TOTAL_TESTS_RUN") or 0)
-    total_models = int(row.get("TOTAL_MODELS_RUN") or 0)
+    models_run = int(row.get("TOTAL_MODELS_RUN") or 0)
+    tests_run = int(row.get("TOTAL_TESTS_RUN") or 0)
 
     # Health status banner
     if total_failures == 0:
@@ -115,15 +124,16 @@ def render(search_filter: str = ""):
     with link_cols[0]:
         with st.container(border=True):
             st.markdown("**Models**")
-            st.caption(f"{total_models} total")
+            st.caption(f"{total_models} total in project")
+            st.caption(f"{models_run} ran recently")
             if failed_models > 0:
                 st.caption(f":red_circle: {failed_models} failed")
     with link_cols[1]:
         with st.container(border=True):
             st.markdown("**Tests**")
-            st.caption(f"{total_tests} total")
-            if total_tests > 0:
-                pass_rate = ((total_tests - failed_tests) / total_tests) * 100
+            st.caption(f"{total_tests} total in project")
+            if tests_run > 0:
+                pass_rate = ((tests_run - failed_tests) / tests_run) * 100
                 st.caption(f"{pass_rate:.0f}% passing")
     with link_cols[2]:
         with st.container(border=True):

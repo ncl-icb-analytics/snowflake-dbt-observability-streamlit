@@ -98,3 +98,13 @@ def get_top_failures(limit: int = 5):
     LIMIT {limit}
     """
     return run_query(query)
+
+
+def get_project_totals():
+    """Get total counts of models and tests in the project (not just recent runs)."""
+    query = f"""
+    SELECT
+        (SELECT COUNT(*) FROM {ELEMENTARY_SCHEMA}.dbt_models) as total_models,
+        (SELECT COUNT(DISTINCT test_unique_id) FROM {ELEMENTARY_SCHEMA}.elementary_test_results) as total_tests
+    """
+    return run_query(query)
