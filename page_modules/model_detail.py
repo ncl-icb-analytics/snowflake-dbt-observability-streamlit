@@ -127,22 +127,45 @@ def render(unique_id: str):
 
     st.caption(f"Last run: {latest['GENERATED_AT']}")
 
-    # Run history timeline
+    # Run history - only show timeline if more than 2 data points
     st.subheader("Run History")
-    st.altair_chart(run_status_timeline(history_df), use_container_width=True)
+    if len(history_df) > 2:
+        st.altair_chart(run_status_timeline(history_df), use_container_width=True)
+
+    # Get row count history for showing in run cards
+    row_count_history = {}
+    if has_row_count:
+        rc_df = get_model_row_count_history(details["NAME"], days)
+        for _, rc_row in rc_df.iterrows():
+            # Use date as key for matching
+            rc_date = str(rc_row["RUN_STARTED_AT"])[:10]
+            row_count_history[rc_date] = rc_row["ROW_COUNT"]
 
     # Recent runs with details
     for _, row in history_df.head(10).iterrows():
-        status_icon = "🟢" if row["STATUS"] == "success" else "🔴"
+        status = row["STATUS"].lower()
+        if status == "success":
+            status_icon = "🟢"
+        elif status == "skipped":
+            status_icon = "⚪"
+        else:
+            status_icon = "🔴"
         time_str = f"{row['EXECUTION_TIME']:.1f}s" if row["EXECUTION_TIME"] else "N/A"
+        run_date = str(row["GENERATED_AT"])[:10]
+        row_count_at_run = row_count_history.get(run_date)
 
         with st.container(border=True):
-            cols = st.columns([3, 1, 1])
+            cols = st.columns([2, 1, 1, 1])
             with cols[0]:
                 st.markdown(f"{status_icon} **{row['STATUS'].upper()}**")
             with cols[1]:
                 st.caption(f"{time_str}")
             with cols[2]:
+                if row_count_at_run:
+                    st.caption(f"{_format_row_count(row_count_at_run)} rows")
+                else:
+                    st.caption("")
+            with cols[3]:
                 st.caption(str(row["GENERATED_AT"])[:16])
 
             if row.get("MESSAGE") and row["STATUS"] in ("fail", "error"):
@@ -165,14 +188,14 @@ def render(unique_id: str):
                 st.caption("Total Rows")
                 st.altair_chart(row_count_trend_chart(row_count_df, height=200), use_container_width=True)
             with chart_col2:
-                st.caption("Row Changes")
+                st.caption("Row Count Changes")
                 st.altair_chart(row_count_change_chart(row_count_df, height=200), use_container_width=True)
         else:
             st.info("Not enough row count history to display charts (need at least 2 data points)")
 
-    # Related tests
+    # Applied tests
     st.divider()
-    st.subheader("Related Tests")
+    st.subheader("Applied Tests")
     tests_df = get_tests_for_model(details["NAME"])
     if tests_df.empty:
         st.info("No tests found for this model")
