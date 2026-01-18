@@ -123,7 +123,12 @@ def render(unique_id: str):
             else:
                 st.metric("Row Count", _format_row_count(row_count))
         else:
-            st.metric("Row Count", "N/A")
+            # Show why row count isn't available based on materialization
+            materialization = (details.get("MATERIALIZATION") or "").lower()
+            if materialization in ("view", "ephemeral"):
+                st.metric("Row Count", "N/A", help=f"Not tracked for {materialization} models")
+            else:
+                st.metric("Row Count", "N/A")
 
     st.caption(f"Last run: {latest['GENERATED_AT']}")
 
