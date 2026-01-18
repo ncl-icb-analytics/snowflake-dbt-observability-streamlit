@@ -101,24 +101,6 @@ def row_count_trend_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
     return chart
 
 
-def growth_trend_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
-    """Line chart for Elementary data_monitoring_metrics trends."""
-    if df.empty:
-        return alt.Chart().mark_text().encode(text=alt.value("No data"))
-
-    chart = (
-        alt.Chart(df)
-        .mark_line(point=True)
-        .encode(
-            x=alt.X("METRIC_DATE:T", title="Date"),
-            y=alt.Y("ROW_COUNT:Q", title="Row Count"),
-            tooltip=["METRIC_DATE:T", "ROW_COUNT:Q"],
-        )
-        .properties(height=height)
-    )
-    return chart
-
-
 def top_models_bar_chart(df: pd.DataFrame, height: int = 400) -> alt.Chart:
     """Horizontal bar chart for slowest models."""
     if df.empty:
