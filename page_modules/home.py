@@ -75,9 +75,19 @@ def _format_duration(seconds) -> str:
 
 
 def render(search_filter: str = ""):
-    st.title("dbt Project Health")
+    # Title and time range selector in same row
+    title_col, range_col = st.columns([4, 1])
+    with title_col:
+        st.title("dbt Project Health")
+    with range_col:
+        time_range = st.selectbox(
+            "Time Range",
+            options=[7, 30],
+            format_func=lambda x: f"{x}d",
+            label_visibility="collapsed"
+        )
 
-    kpis = get_dashboard_kpis()
+    kpis = get_dashboard_kpis(days=time_range)
     if kpis.empty:
         st.warning("No data available")
         return
@@ -107,7 +117,7 @@ def render(search_filter: str = ""):
     st.divider()
 
     # Get total execution time
-    exec_time_df = get_total_execution_time()
+    exec_time_df = get_total_execution_time(days=time_range)
     total_exec_time = exec_time_df.iloc[0]["TOTAL_TIME"] if not exec_time_df.empty else 0
 
     # KPI row - 6 metrics
@@ -122,9 +132,9 @@ def render(search_filter: str = ""):
         st.metric("Total Tests", total_tests)
     with cols[4]:
         if total_exec_time:
-            st.metric("Runtime (7d)", _format_duration(total_exec_time))
+            st.metric(f"Runtime ({time_range}d)", _format_duration(total_exec_time))
         else:
-            st.metric("Runtime (7d)", "N/A")
+            st.metric(f"Runtime ({time_range}d)", "N/A")
     with cols[5]:
         st.metric("Last Run", _format_relative_time(row["LAST_RUN_TIME"]))
 
@@ -135,28 +145,31 @@ def render(search_filter: str = ""):
 
     with col_failures:
         st.subheader("Needs Attention")
-        failures = get_top_failures(limit=8)
+        failures = get_top_failures(limit=8, days=time_range)
         if failures.empty:
             st.info("No current failures")
         else:
             for _, f_row in failures.iterrows():
                 icon = ":test_tube:" if f_row["TYPE"] == "test" else ":package:"
-                name = _truncate(f_row["NAME"])
                 unique_id = f_row["UNIQUE_ID"]
+                model_path = f_row.get("MODEL_PATH") or ""
 
                 with st.container(border=True):
                     col1, col2 = st.columns([4, 1])
                     with col1:
-                        st.markdown(f"{icon} **{name}**")
-                        # Show model and test namespace for tests, schema for models
                         if f_row["TYPE"] == "test":
-                            model = f_row.get("MODEL_NAME") or ""
-                            test_ns = f_row.get("TEST_NAMESPACE") or ""
-                            info_parts = [p for p in [model, test_ns] if p]
-                            st.caption(" | ".join(info_parts) if info_parts else "")
+                            # For tests: show model name as title, test name as subtitle
+                            model_name = f_row.get("MODEL_NAME") or "unknown"
+                            test_name = _truncate(f_row["NAME"])
+                            st.markdown(f"{icon} **{model_name}**")
+                            st.caption(f"{test_name}")
                         else:
-                            schema = f_row["SCHEMA_NAME"] or "unknown"
-                            st.caption(schema)
+                            # For models: show model name as title
+                            name = _truncate(f_row["NAME"])
+                            st.markdown(f"{icon} **{name}**")
+                        # Show path for both
+                        if model_path:
+                            st.caption(_truncate(model_path, 60))
                         st.caption(_format_timestamp(f_row['FAILED_AT']))
                     with col2:
                         if f_row["TYPE"] == "test":

@@ -77,7 +77,7 @@ def get_recent_runs(limit: int = 10):
     return run_query(query)
 
 
-def get_top_failures(limit: int = 5):
+def get_top_failures(limit: int = 5, days: int = DEFAULT_LOOKBACK_DAYS):
     """Get top current failures for 'needs attention' section with cleaner names."""
     query = f"""
     WITH test_failures AS (
@@ -89,10 +89,13 @@ def get_top_failures(limit: int = 5):
             r.schema_name,
             COALESCE(t.test_namespace, r.test_type) as test_namespace,
             r.table_name as model_name,
+            m.unique_id as tested_model_id,
+            COALESCE(m.original_path, m.path) as model_path,
             ROW_NUMBER() OVER (PARTITION BY r.test_unique_id ORDER BY r.detected_at DESC) as rn
         FROM {ELEMENTARY_SCHEMA}.elementary_test_results r
         LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_tests t ON r.test_unique_id = t.unique_id
-        WHERE r.detected_at >= DATEADD(day, -7, CURRENT_TIMESTAMP())
+        LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.table_name = m.name
+        WHERE r.detected_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
         AND r.status IN ('fail', 'error')
     ),
     model_failures AS (
@@ -104,14 +107,16 @@ def get_top_failures(limit: int = 5):
             m.schema_name,
             NULL as test_namespace,
             NULL as model_name,
+            r.unique_id as tested_model_id,
+            COALESCE(m.original_path, m.path) as model_path,
             ROW_NUMBER() OVER (PARTITION BY r.unique_id ORDER BY r.generated_at DESC) as rn
         FROM {ELEMENTARY_SCHEMA}.dbt_run_results r
         LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.unique_id = m.unique_id
-        WHERE r.generated_at >= DATEADD(day, -7, CURRENT_TIMESTAMP())
+        WHERE r.generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
         AND r.status IN ('fail', 'error')
         AND r.resource_type = 'model'
     )
-    SELECT unique_id, name, type, failed_at, schema_name, test_namespace, model_name
+    SELECT unique_id, name, type, failed_at, schema_name, test_namespace, model_name, tested_model_id, model_path
     FROM (
         SELECT * FROM test_failures WHERE rn = 1
         UNION ALL
