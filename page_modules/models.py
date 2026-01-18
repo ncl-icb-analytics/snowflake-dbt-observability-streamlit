@@ -83,12 +83,12 @@ def _render_list_view(search_filter: str, total_models: int):
     with stat_cols[0]:
         st.metric("Showing", len(df))
     with stat_cols[1]:
-        st.metric("Failed", failed_count)
+        st.metric("🔴 Failed", failed_count)
     with stat_cols[2]:
-        st.metric("Slow", slow_count)
+        st.metric("🐢 Slow", slow_count)
     if show_all:
         with stat_cols[3]:
-            st.metric("No Recent Runs", no_runs_count)
+            st.metric("⚪ No Runs", no_runs_count)
         with stat_cols[4]:
             st.metric("Total in Project", total_models)
     else:
@@ -106,7 +106,7 @@ def _render_list_view(search_filter: str, total_models: int):
             status_icon = "⚪"
         else:
             status_icon = "🟢"
-        slow_badge = " 🟠" if row["IS_SLOW"] else ""
+        slow_badge = " 🐢" if row["IS_SLOW"] else ""
         schema = row["SCHEMA_NAME"] or "unknown"
         name = _truncate(row["NAME"])
         avg_time = row["AVG_EXECUTION_TIME"]
@@ -162,7 +162,7 @@ def _render_path_browser(total_models: int):
     df = get_models_summary(days=days, search=search, show_all=True, limit=200)
 
     if df.empty:
-        st.info("No models in this folder")
+        st.info("No recent runs for models in this folder")
         return
 
     st.write(f"**{len(df)} models** in `{selected_folder}`")
@@ -176,7 +176,7 @@ def _render_path_browser(total_models: int):
             status_icon = "⚪"
         else:
             status_icon = "🟢"
-        slow_badge = " 🟠" if row["IS_SLOW"] else ""
+        slow_badge = " 🐢" if row["IS_SLOW"] else ""
         name = row["NAME"]
         avg_time = row["AVG_EXECUTION_TIME"]
         time_str = f"{avg_time:.1f}s" if avg_time else ""
