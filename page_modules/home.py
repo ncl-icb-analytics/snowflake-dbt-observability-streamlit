@@ -18,17 +18,20 @@ def _format_relative_time(ts):
     """Format timestamp as relative time (e.g., '2 hours ago')."""
     if ts is None:
         return "N/A"
-    from datetime import datetime, timezone
+    from datetime import datetime
     try:
-        if hasattr(ts, 'tzinfo') and ts.tzinfo is None:
-            now = datetime.now()
-        else:
-            now = datetime.now(timezone.utc)
-            if hasattr(ts, 'replace'):
-                ts = ts.replace(tzinfo=timezone.utc)
+        # Convert string to datetime if needed
+        if isinstance(ts, str):
+            # Handle "2026-01-16 13:12:51" format (space instead of T)
+            ts = datetime.strptime(ts[:19], "%Y-%m-%d %H:%M:%S")
+
+        now = datetime.now()
         diff = now - ts
         seconds = diff.total_seconds()
-        if seconds < 60:
+
+        if seconds < 0:
+            return "Just now"
+        elif seconds < 60:
             return "Just now"
         elif seconds < 3600:
             mins = int(seconds // 60)
