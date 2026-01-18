@@ -14,6 +14,35 @@ def _format_timestamp(ts):
         return str(ts)[:16] if ts else "N/A"
 
 
+def _format_relative_time(ts):
+    """Format timestamp as relative time (e.g., '2 hours ago')."""
+    if ts is None:
+        return "N/A"
+    from datetime import datetime, timezone
+    try:
+        if hasattr(ts, 'tzinfo') and ts.tzinfo is None:
+            now = datetime.now()
+        else:
+            now = datetime.now(timezone.utc)
+            if hasattr(ts, 'replace'):
+                ts = ts.replace(tzinfo=timezone.utc)
+        diff = now - ts
+        seconds = diff.total_seconds()
+        if seconds < 60:
+            return "Just now"
+        elif seconds < 3600:
+            mins = int(seconds // 60)
+            return f"{mins}m ago"
+        elif seconds < 86400:
+            hours = int(seconds // 3600)
+            return f"{hours}h ago"
+        else:
+            days = int(seconds // 86400)
+            return f"{days}d ago"
+    except Exception:
+        return _format_timestamp(ts)
+
+
 def _truncate(text: str, max_len: int = 50) -> str:
     """Truncate text with ellipsis."""
     if not text:
@@ -90,11 +119,11 @@ def render(search_filter: str = ""):
         st.metric("Total Tests", total_tests)
     with cols[4]:
         if total_exec_time:
-            st.metric("Total Runtime", f"{total_exec_time / 60:.1f} min")
+            st.metric("Runtime (7d)", _format_duration(total_exec_time))
         else:
-            st.metric("Total Runtime", "N/A")
+            st.metric("Runtime (7d)", "N/A")
     with cols[5]:
-        st.metric("Last Run", _format_timestamp(row["LAST_RUN_TIME"]))
+        st.metric("Last Run", _format_relative_time(row["LAST_RUN_TIME"]))
 
     st.divider()
 
@@ -116,11 +145,11 @@ def render(search_filter: str = ""):
                     col1, col2 = st.columns([4, 1])
                     with col1:
                         st.markdown(f"{icon} **{name}**")
-                        # Show test namespace and model for tests, schema for models
+                        # Show model and test namespace for tests, schema for models
                         if f_row["TYPE"] == "test":
-                            test_ns = f_row.get("TEST_NAMESPACE") or ""
                             model = f_row.get("MODEL_NAME") or ""
-                            info_parts = [p for p in [test_ns, model] if p]
+                            test_ns = f_row.get("TEST_NAMESPACE") or ""
+                            info_parts = [p for p in [model, test_ns] if p]
                             st.caption(" | ".join(info_parts) if info_parts else "")
                         else:
                             schema = f_row["SCHEMA_NAME"] or "unknown"
@@ -175,35 +204,3 @@ def render(search_filter: str = ""):
                         else:
                             st.markdown(f"{models_run} models | 🟢 {success} | {time_str}")
 
-    st.divider()
-
-    # Summary cards section
-    st.subheader("Summary")
-    summary_cols = st.columns(4)
-    with summary_cols[0]:
-        with st.container(border=True):
-            st.markdown("**Models**")
-            st.caption(f"{total_models} total")
-            if failed_models > 0:
-                st.markdown(f"🔴 {failed_models} failed")
-            else:
-                st.markdown("🟢 All healthy")
-    with summary_cols[1]:
-        with st.container(border=True):
-            st.markdown("**Tests**")
-            st.caption(f"{total_tests} total")
-            if tests_run > 0:
-                pass_rate = ((tests_run - failed_tests) / tests_run) * 100
-                st.caption(f"{pass_rate:.0f}% passing")
-    with summary_cols[2]:
-        with st.container(border=True):
-            st.markdown("**Alerts**")
-            if total_failures > 0:
-                st.markdown(f"🔴 {total_failures} active")
-            else:
-                st.markdown("🟢 None")
-    with summary_cols[3]:
-        with st.container(border=True):
-            st.markdown("**Performance**")
-            if total_exec_time:
-                st.caption(f"{total_exec_time / 60:.1f} min total")
