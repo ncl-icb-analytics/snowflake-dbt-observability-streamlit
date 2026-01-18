@@ -1,7 +1,7 @@
 """Model run queries."""
 
 from database import run_query
-from config import ELEMENTARY_SCHEMA, DEFAULT_LOOKBACK_DAYS, DEFAULT_PAGE_SIZE
+from config import ELEMENTARY_SCHEMA, DEFAULT_LOOKBACK_DAYS, DEFAULT_PAGE_SIZE, SLOW_MODEL_MIN_SECONDS
 
 
 def get_models_summary(
@@ -52,7 +52,7 @@ def get_models_summary(
             r.generated_at as last_run,
             r.avg_execution_time,
             COALESCE(r.run_count, 0) as run_count,
-            CASE WHEN r.avg_execution_time > p.p90 THEN TRUE ELSE FALSE END as is_slow
+            CASE WHEN r.avg_execution_time > p.p90 AND r.avg_execution_time >= {SLOW_MODEL_MIN_SECONDS} THEN TRUE ELSE FALSE END as is_slow
         FROM {ELEMENTARY_SCHEMA}.dbt_models m
         LEFT JOIN latest_runs r ON m.unique_id = r.unique_id
         CROSS JOIN percentiles p
@@ -102,11 +102,11 @@ def get_models_summary(
             ms.generated_at as last_run,
             ms.avg_execution_time,
             ms.run_count,
-            CASE WHEN ms.avg_execution_time > p.p90 THEN TRUE ELSE FALSE END as is_slow
+            CASE WHEN ms.avg_execution_time > p.p90 AND ms.avg_execution_time >= {SLOW_MODEL_MIN_SECONDS} THEN TRUE ELSE FALSE END as is_slow
         FROM model_stats ms
         CROSS JOIN percentiles p
         WHERE ms.rn = 1
-        AND (ms.status IN ('fail', 'error') OR ms.avg_execution_time > p.p90)
+        AND (ms.status IN ('fail', 'error') OR (ms.avg_execution_time > p.p90 AND ms.avg_execution_time >= {SLOW_MODEL_MIN_SECONDS}))
         ORDER BY
             CASE WHEN ms.status IN ('fail', 'error') THEN 0 ELSE 1 END,
             ms.avg_execution_time DESC NULLS LAST

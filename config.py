@@ -24,3 +24,4 @@ CACHE_TTL = 300
 # Thresholds
 FLAKY_TEST_THRESHOLD = 0.2  # 20% failure rate = flaky
 SLOW_MODEL_PERCENTILE = 90  # Top 10% by execution time = slow
+SLOW_MODEL_MIN_SECONDS = 60  # Minimum 60s to be considered slow

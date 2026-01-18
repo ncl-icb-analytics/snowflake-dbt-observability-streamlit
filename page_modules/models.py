@@ -44,61 +44,49 @@ def render(search_filter: str = ""):
     total_count_df = get_models_count()
     total_models = int(total_count_df.iloc[0]["TOTAL"]) if not total_count_df.empty else 0
 
-    # View mode tabs
-    tab_list, tab_browse = st.tabs(["List View", "Browse by Path"])
-
-    with tab_list:
-        _render_list_view(search_filter, total_models)
+    # View mode tabs - Browse by Path is default
+    tab_browse, tab_slow = st.tabs(["Browse by Path", "🐢 Slow Models"])
 
     with tab_browse:
         _render_path_browser(total_models)
 
+    with tab_slow:
+        _render_slow_models(search_filter, total_models)
 
-def _render_list_view(search_filter: str, total_models: int):
-    """Render the standard list view."""
+
+def _render_slow_models(search_filter: str, total_models: int):
+    """Render slow models view - models in top 10% by execution time."""
     # Filters row
-    col1, col2, col3 = st.columns([1, 1, 3])
+    col1, col2 = st.columns([1, 4])
     with col1:
         days = st.selectbox("Time range", [7, 14, 30], index=0, format_func=lambda x: f"{x}d", key="models_days")
     with col2:
-        show_all = st.checkbox("Show all", value=False, help=f"Show all {total_models} models")
-    with col3:
         search = search_filter or st.text_input("Filter by name", placeholder="Search models...", key="models_search")
 
-    df = get_models_summary(days=days, search=search, show_all=show_all)
+    # Get all models, then filter to slow ones
+    df = get_models_summary(days=days, search=search, show_all=True, limit=2000)
 
     if df.empty:
-        if show_all:
-            st.info("No models found")
-        else:
-            st.success(f"All models healthy ({total_models} total)")
+        st.info("No models found")
         return
 
-    # Summary stats
-    failed_count = len(df[df["LATEST_STATUS"].isin(["fail", "error"])])
-    slow_count = len(df[df["IS_SLOW"] == True])
-    no_runs_count = len(df[df["LATEST_STATUS"] == "no_runs"]) if show_all else 0
+    # Filter to slow models only
+    slow_df = df[df["IS_SLOW"] == True].copy()
 
-    stat_cols = st.columns(5 if show_all else 4)
-    with stat_cols[0]:
-        st.metric("Showing", len(df))
-    with stat_cols[1]:
-        st.metric("🔴 Failed", failed_count)
-    with stat_cols[2]:
-        st.metric("🐢 Slow", slow_count)
-    if show_all:
-        with stat_cols[3]:
-            st.metric("⚪ No Runs", no_runs_count)
-        with stat_cols[4]:
-            st.metric("Total in Project", total_models)
-    else:
-        with stat_cols[3]:
-            st.metric("Total in Project", total_models)
+    if slow_df.empty:
+        st.success("No slow models (top 10% by execution time)")
+        return
+
+    st.caption("Slow = top 10% by avg execution time, minimum 60s")
+    st.write(f"**{len(slow_df)} slow models** out of {total_models} total")
 
     st.divider()
 
+    # Sort by execution time descending
+    slow_df = slow_df.sort_values("AVG_EXECUTION_TIME", ascending=False)
+
     # Model list - clickable rows
-    for _, row in df.iterrows():
+    for _, row in slow_df.iterrows():
         status = row["LATEST_STATUS"]
         if status in ("fail", "error"):
             status_icon = "🔴"
@@ -106,7 +94,6 @@ def _render_list_view(search_filter: str, total_models: int):
             status_icon = "⚪"
         else:
             status_icon = "🟢"
-        slow_badge = " 🐢" if row["IS_SLOW"] else ""
         schema = row["SCHEMA_NAME"] or "unknown"
         name = _truncate(row["NAME"])
         avg_time = row["AVG_EXECUTION_TIME"]
@@ -115,7 +102,7 @@ def _render_list_view(search_filter: str, total_models: int):
         with st.container(border=True):
             cols = st.columns([3, 1, 1, 1])
             with cols[0]:
-                st.markdown(f"{status_icon}{slow_badge} **{name}**")
+                st.markdown(f"{status_icon} 🐢 **{name}**")
                 st.caption(schema)
             with cols[1]:
                 st.caption("Status")
@@ -124,7 +111,7 @@ def _render_list_view(search_filter: str, total_models: int):
                 st.caption("Avg Time")
                 st.write(time_str)
             with cols[3]:
-                if st.button("View", key=f"model_{row['UNIQUE_ID']}"):
+                if st.button("View", key=f"slow_model_{row['UNIQUE_ID']}"):
                     st.session_state["selected_model"] = row["UNIQUE_ID"]
                     st.session_state["selected_test"] = None
                     st.rerun()
