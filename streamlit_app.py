@@ -54,19 +54,10 @@ def main():
 
     # Sidebar navigation
     st.sidebar.title("dbt Observability")
-
-    search_term = st.sidebar.text_input(
-        "Search models/tests", placeholder="Enter name or tag..."
-    )
-    if search_term:
-        st.session_state["global_search"] = search_term
-
-    st.sidebar.divider()
-
     page_name = st.sidebar.radio("Navigation", list(PAGES.keys()), label_visibility="collapsed")
 
     page_module = PAGES[page_name]
-    page_module.render(search_filter=st.session_state.get("global_search", ""))
+    page_module.render()
 
 
 if __name__ == "__main__":

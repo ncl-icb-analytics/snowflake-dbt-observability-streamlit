@@ -19,7 +19,7 @@ def render(search_filter: str = ""):
     tab_all, tab_flaky, tab_coverage = st.tabs(["All Tests", "Flaky Tests", "Coverage Gaps"])
 
     with tab_all:
-        _render_all_tests(search_filter)
+        _render_all_tests()
 
     with tab_flaky:
         _render_flaky_tests()
@@ -28,13 +28,13 @@ def render(search_filter: str = ""):
         _render_coverage_gaps()
 
 
-def _render_all_tests(search_filter: str):
+def _render_all_tests():
     """Render all tests as clickable list."""
-    col1, col2 = st.columns([1, 3])
+    col1, col2 = st.columns([3, 1])
     with col1:
-        days = st.selectbox("Time range", [7, 14, 30], index=0, format_func=lambda x: f"Last {x} days", key="tests_days")
+        search = st.text_input("Search tests", placeholder="Filter by name or model...", key="tests_search")
     with col2:
-        search = search_filter or st.text_input("Search tests", placeholder="Filter by name...", key="tests_search")
+        days = st.selectbox("Range", [7, 14, 30], index=0, format_func=lambda x: f"{x}d", key="tests_days")
 
     df = get_tests_summary(days=days, search=search)
 

@@ -129,30 +129,37 @@ def _render_path_browser(total_models: int):
     tree = _build_folder_tree(paths)
     folder_options = ["All"] + _get_folder_options(tree)
 
-    # Folder selector
-    col1, col2 = st.columns([2, 2])
+    # Search and filters row
+    col1, col2, col3 = st.columns([2, 2, 1])
     with col1:
+        search_text = st.text_input("Search models", placeholder="Filter by name or path...", key="models_browse_search")
+    with col2:
         selected_folder = st.selectbox(
-            "Select folder",
+            "Folder",
             folder_options,
             key="model_folder_select"
         )
-    with col2:
-        days = st.selectbox("Time range", [7, 14, 30], index=0, format_func=lambda x: f"{x}d", key="models_browse_days")
+    with col3:
+        days = st.selectbox("Range", [7, 14, 30], index=0, format_func=lambda x: f"{x}d", key="models_browse_days")
 
-    # Build search pattern from folder - use forward slashes to match DB paths
-    if selected_folder == "All":
-        search = ""
+    # Combine search: text search takes priority, folder filters additionally
+    if search_text:
+        search = search_text
+    elif selected_folder != "All":
+        search = selected_folder
     else:
-        search = selected_folder  # Keep forward slashes to match paths in DB
+        search = ""
 
     df = get_models_summary(days=days, search=search, show_all=True, limit=500)
 
     if df.empty:
-        st.info("No recent runs for models in this folder")
+        if search:
+            st.info(f"No models found matching '{search}'")
+        else:
+            st.info("No models found")
         return
 
-    st.write(f"**{len(df)} models** in `{selected_folder}`")
+    st.write(f"**{len(df)} models**")
 
     # Model list
     for _, row in df.iterrows():

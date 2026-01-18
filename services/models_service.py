@@ -16,8 +16,10 @@ def get_models_summary(
     By default shows only models with issues (failed or slow).
     When show_all=True, shows ALL models from dbt_models table.
     """
-    search_filter = f"AND (LOWER(m.unique_id) LIKE LOWER('%{search}%') OR LOWER(COALESCE(m.original_path, m.path, '')) LIKE LOWER('%{search}%'))" if search else ""
-    search_filter_run = f"AND (LOWER(r.unique_id) LIKE LOWER('%{search}%') OR LOWER(COALESCE(m.original_path, m.path, '')) LIKE LOWER('%{search}%'))" if search else ""
+    # Normalize search to handle both forward and back slashes
+    normalized_search = search.replace("\\", "/") if search else ""
+    search_filter = f"AND (LOWER(m.unique_id) LIKE LOWER('%{normalized_search}%') OR LOWER(m.name) LIKE LOWER('%{normalized_search}%') OR LOWER(REPLACE(COALESCE(m.original_path, m.path, ''), '\\\\', '/')) LIKE LOWER('%{normalized_search}%'))" if search else ""
+    search_filter_run = f"AND (LOWER(r.unique_id) LIKE LOWER('%{normalized_search}%') OR LOWER(r.name) LIKE LOWER('%{normalized_search}%') OR LOWER(REPLACE(COALESCE(m.original_path, m.path, ''), '\\\\', '/')) LIKE LOWER('%{normalized_search}%'))" if search else ""
 
     if show_all:
         # Show all models, including those without recent runs
