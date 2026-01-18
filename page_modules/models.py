@@ -14,36 +14,47 @@ from config import DEFAULT_LOOKBACK_DAYS
 def render(search_filter: str = ""):
     st.title("Models")
 
-    # Filters row
-    col1, col2, col3 = st.columns([1, 1, 2])
+    # Filters in compact row
+    filter_cols = st.columns([1, 1, 2, 2])
+    with filter_cols[0]:
+        days = st.selectbox("Time range", [7, 14, 30], index=0, format_func=lambda x: f"{x}d", key="models_days")
+    with filter_cols[1]:
+        show_all = st.checkbox("Show all", value=False, help="By default only shows models with issues")
+    with filter_cols[2]:
+        search = search_filter or st.text_input("Search", placeholder="Filter by name...", label_visibility="collapsed")
 
-    with col1:
-        days = st.selectbox("Time range", [7, 14, 30], index=0, format_func=lambda x: f"Last {x} days", key="models_days")
-
-    with col2:
-        show_all = st.checkbox("Show all models", value=False, help="By default only shows models with issues")
-
-    # Search from global or local
-    search = search_filter or st.text_input("Search models", placeholder="Filter by name...")
-
-    # Get models data
     df = get_models_summary(days=days, search=search, show_all=show_all)
 
     if df.empty:
         if show_all:
             st.info("No model runs found in this time range")
         else:
-            st.success("No model issues found")
+            st.success("All models healthy")
         return
 
-    st.write(f"**{len(df)} models**")
+    # Summary stats
+    failed_count = len(df[df["LATEST_STATUS"].isin(["fail", "error"])])
+    slow_count = len(df[df["IS_SLOW"] == True])
 
-    # Table with expandable rows
+    stat_cols = st.columns(4)
+    with stat_cols[0]:
+        st.metric("Total Models", len(df))
+    with stat_cols[1]:
+        st.metric("Failed", failed_count)
+    with stat_cols[2]:
+        st.metric("Slow", slow_count)
+    with stat_cols[3]:
+        st.metric("Healthy", len(df) - failed_count - slow_count)
+
+    st.divider()
+
+    # Model list
     for _, row in df.iterrows():
         status_icon = ":red_circle:" if row["LATEST_STATUS"] in ("fail", "error") else ":green_circle:"
-        slow_badge = " :orange_circle: SLOW" if row["IS_SLOW"] else ""
+        slow_badge = " :orange_circle:" if row["IS_SLOW"] else ""
+        schema = row["SCHEMA_NAME"] or "unknown"
 
-        with st.expander(f"{status_icon} {row['NAME']}{slow_badge} — {row['SCHEMA_NAME']}"):
+        with st.expander(f"{status_icon}{slow_badge} {row['NAME']} — {schema}"):
             col1, col2, col3 = st.columns(3)
 
             with col1:
@@ -73,10 +84,8 @@ def render(search_filter: str = ""):
                 if details.get("ORIGINAL_PATH"):
                     st.markdown(f"**Path:** `{details['ORIGINAL_PATH']}`")
 
-                # Compiled SQL
-                if details.get("COMPILED_CODE"):
-                    with st.expander("View Compiled SQL"):
-                        st.code(details["COMPILED_CODE"], language="sql")
+                if details.get("MATERIALIZATION"):
+                    st.markdown(f"**Materialization:** {details['MATERIALIZATION']}")
 
             # Run history with error messages
             history_df = get_model_run_history(row["UNIQUE_ID"], days)

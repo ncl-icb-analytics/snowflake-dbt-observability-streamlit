@@ -15,7 +15,6 @@ def get_current_test_failures(days: int = DEFAULT_LOOKBACK_DAYS, search: str = "
     WITH ranked AS (
         SELECT
             test_unique_id,
-            elementary_unique_id,
             test_name,
             test_type,
             status,
@@ -36,7 +35,6 @@ def get_current_test_failures(days: int = DEFAULT_LOOKBACK_DAYS, search: str = "
     )
     SELECT
         test_unique_id,
-        elementary_unique_id,
         test_name,
         test_type,
         status,
@@ -58,28 +56,31 @@ def get_current_model_failures(days: int = DEFAULT_LOOKBACK_DAYS, search: str = 
     """
     Get model failures where the most recent run failed.
     """
-    search_filter = f"AND LOWER(unique_id) LIKE LOWER('%{search}%')" if search else ""
+    search_filter = f"AND LOWER(r.unique_id) LIKE LOWER('%{search}%')" if search else ""
 
     query = f"""
     WITH ranked AS (
         SELECT
-            unique_id,
-            name,
-            status,
-            execution_time,
-            generated_at,
-            database_name,
-            schema_name,
-            compile_started_at,
-            compile_completed_at,
-            execute_started_at,
-            execute_completed_at,
+            r.unique_id,
+            r.name,
+            r.status,
+            r.execution_time,
+            TRY_TO_TIMESTAMP(r.generated_at) as generated_at,
+            m.database_name,
+            m.schema_name,
+            r.compile_started_at,
+            r.compile_completed_at,
+            r.execute_started_at,
+            r.execute_completed_at,
+            r.message,
             ROW_NUMBER() OVER (
-                PARTITION BY unique_id
-                ORDER BY generated_at DESC
+                PARTITION BY r.unique_id
+                ORDER BY TRY_TO_TIMESTAMP(r.generated_at) DESC
             ) as rn
-        FROM {ELEMENTARY_SCHEMA}.model_run_results
-        WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+        FROM {ELEMENTARY_SCHEMA}.dbt_run_results r
+        LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.unique_id = m.unique_id
+        WHERE TRY_TO_TIMESTAMP(r.generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+        AND r.resource_type = 'model'
         {search_filter}
     )
     SELECT *
@@ -105,9 +106,10 @@ def get_alert_counts(days: int = DEFAULT_LOOKBACK_DAYS):
         SELECT
             unique_id,
             status,
-            ROW_NUMBER() OVER (PARTITION BY unique_id ORDER BY generated_at DESC) as rn
-        FROM {ELEMENTARY_SCHEMA}.model_run_results
-        WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+            ROW_NUMBER() OVER (PARTITION BY unique_id ORDER BY TRY_TO_TIMESTAMP(generated_at) DESC) as rn
+        FROM {ELEMENTARY_SCHEMA}.dbt_run_results
+        WHERE TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+        AND resource_type = 'model'
     )
     SELECT
         (SELECT COUNT(*) FROM test_ranked WHERE rn = 1 AND status IN ('fail', 'error')) as failed_tests,

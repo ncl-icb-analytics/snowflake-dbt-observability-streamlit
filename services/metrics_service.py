@@ -20,14 +20,15 @@ def get_dashboard_kpis(days: int = DEFAULT_LOOKBACK_DAYS):
             unique_id,
             status,
             execution_time,
-            ROW_NUMBER() OVER (PARTITION BY unique_id ORDER BY generated_at DESC) as rn
-        FROM {ELEMENTARY_SCHEMA}.model_run_results
-        WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+            ROW_NUMBER() OVER (PARTITION BY unique_id ORDER BY TRY_TO_TIMESTAMP(generated_at) DESC) as rn
+        FROM {ELEMENTARY_SCHEMA}.dbt_run_results
+        WHERE TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+        AND resource_type = 'model'
     ),
     last_run AS (
-        SELECT MAX(generated_at) as last_run_time
-        FROM {ELEMENTARY_SCHEMA}.model_run_results
-        WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+        SELECT MAX(TRY_TO_TIMESTAMP(generated_at)) as last_run_time
+        FROM {ELEMENTARY_SCHEMA}.dbt_run_results
+        WHERE TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
     )
     SELECT
         (SELECT COUNT(*) FROM test_ranked WHERE rn = 1 AND status IN ('fail', 'error')) as failed_tests,
@@ -45,14 +46,14 @@ def get_recent_runs(limit: int = 10):
     query = f"""
     SELECT
         invocation_id,
-        generated_at,
+        TRY_TO_TIMESTAMP(generated_at) as generated_at,
         command,
         dbt_version,
         full_refresh,
         target_name,
         selected
     FROM {ELEMENTARY_SCHEMA}.dbt_invocations
-    ORDER BY generated_at DESC
+    ORDER BY TRY_TO_TIMESTAMP(generated_at) DESC
     LIMIT {limit}
     """
     return run_query(query)
@@ -74,14 +75,16 @@ def get_top_failures(limit: int = 5):
     ),
     model_failures AS (
         SELECT
-            name,
+            r.name,
             'model' as type,
-            generated_at as failed_at,
-            schema_name,
-            ROW_NUMBER() OVER (PARTITION BY unique_id ORDER BY generated_at DESC) as rn
-        FROM {ELEMENTARY_SCHEMA}.model_run_results
-        WHERE generated_at >= DATEADD(day, -7, CURRENT_TIMESTAMP())
-        AND status IN ('fail', 'error')
+            TRY_TO_TIMESTAMP(r.generated_at) as failed_at,
+            m.schema_name,
+            ROW_NUMBER() OVER (PARTITION BY r.unique_id ORDER BY TRY_TO_TIMESTAMP(r.generated_at) DESC) as rn
+        FROM {ELEMENTARY_SCHEMA}.dbt_run_results r
+        LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.unique_id = m.unique_id
+        WHERE TRY_TO_TIMESTAMP(r.generated_at) >= DATEADD(day, -7, CURRENT_TIMESTAMP())
+        AND r.status IN ('fail', 'error')
+        AND r.resource_type = 'model'
     )
     SELECT name, type, failed_at, schema_name
     FROM (

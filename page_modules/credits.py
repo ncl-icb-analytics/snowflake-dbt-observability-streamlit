@@ -8,33 +8,34 @@ from config import ELEMENTARY_SCHEMA, DEFAULT_LOOKBACK_DAYS
 
 def render(search_filter: str = ""):
     st.title("Performance")
-    st.caption("Identify expensive models for optimization")
 
-    # Filters
-    col1, col2 = st.columns([1, 3])
-    with col1:
+    # Filters in a compact row
+    filter_cols = st.columns([1, 2, 3])
+    with filter_cols[0]:
         days = st.selectbox("Time range", [7, 14, 30], index=0, format_func=lambda x: f"Last {x} days", key="perf_days")
-
-    search = search_filter or st.text_input("Search models", placeholder="Filter by name...", key="perf_search")
+    with filter_cols[1]:
+        search = search_filter or st.text_input("Search", placeholder="Filter by name...", key="perf_search")
 
     # Summary metrics
     summary = _get_performance_summary(days)
     if not summary.empty:
         row = summary.iloc[0]
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            total_time = row["TOTAL_EXECUTION_TIME"] or 0
-            st.metric("Total Execution Time", f"{total_time / 60:.1f} min")
-        with col2:
-            st.metric("Total Runs", int(row["TOTAL_RUNS"] or 0))
-        with col3:
-            avg_time = row["AVG_EXECUTION_TIME"] or 0
-            st.metric("Avg Model Time", f"{avg_time:.1f}s")
+        total_time = row["TOTAL_EXECUTION_TIME"] or 0
+        total_runs = int(row["TOTAL_RUNS"] or 0)
+        avg_time = row["AVG_EXECUTION_TIME"] or 0
+
+        metric_cols = st.columns(4)
+        with metric_cols[0]:
+            st.metric("Total Time", f"{total_time / 60:.1f} min")
+        with metric_cols[1]:
+            st.metric("Total Runs", total_runs)
+        with metric_cols[2]:
+            st.metric("Avg Time", f"{avg_time:.1f}s")
+        with metric_cols[3]:
+            if total_runs > 0:
+                st.metric("Time/Run", f"{total_time / total_runs:.1f}s")
 
     st.divider()
-
-    # Top slowest models
-    st.subheader("Slowest Models (by total execution time)")
 
     df = _get_slowest_models(days, search)
 
@@ -42,29 +43,44 @@ def render(search_filter: str = ""):
         st.info("No model runs found")
         return
 
-    # Bar chart
-    st.altair_chart(top_models_bar_chart(df.head(20)), use_container_width=True)
+    # Two-column layout: chart on left, top models on right
+    chart_col, list_col = st.columns([3, 2])
 
-    # Detailed table
-    st.subheader("Details")
+    with chart_col:
+        st.subheader("Execution Time by Model")
+        st.altair_chart(top_models_bar_chart(df.head(15)), use_container_width=True)
 
+    with list_col:
+        st.subheader("Top 5 Slowest")
+        for _, row in df.head(5).iterrows():
+            with st.container(border=True):
+                st.markdown(f"**{row['NAME']}**")
+                cols = st.columns(2)
+                with cols[0]:
+                    st.caption(f"Total: {row['TOTAL_TIME']:.1f}s")
+                with cols[1]:
+                    st.caption(f"Avg: {row['AVG_TIME']:.1f}s")
+
+    st.divider()
+
+    # Expandable details for all models
+    st.subheader("All Models")
     for _, row in df.iterrows():
         with st.expander(f"{row['NAME']} — {row['TOTAL_TIME']:.1f}s total"):
-            col1, col2, col3 = st.columns(3)
+            cols = st.columns(4)
+            with cols[0]:
+                st.metric("Total", f"{row['TOTAL_TIME']:.1f}s")
+            with cols[1]:
+                st.metric("Avg", f"{row['AVG_TIME']:.1f}s")
+            with cols[2]:
+                st.metric("Max", f"{row['MAX_TIME']:.1f}s")
+            with cols[3]:
+                st.metric("Runs", int(row["RUN_COUNT"]))
 
-            with col1:
-                st.metric("Total Time", f"{row['TOTAL_TIME']:.1f}s")
-            with col2:
-                st.metric("Avg Time", f"{row['AVG_TIME']:.1f}s")
-            with col3:
-                st.metric("Run Count", int(row["RUN_COUNT"]))
+            st.caption(f"Schema: {row['SCHEMA_NAME'] or 'N/A'}")
 
-            st.caption(f"Schema: {row['SCHEMA_NAME']}")
-
-            # Execution time trend
             trend_df = _get_model_time_trend(row["UNIQUE_ID"], days)
             if not trend_df.empty and len(trend_df) > 1:
-                st.markdown("**Execution Time Trend:**")
                 st.altair_chart(execution_time_chart(trend_df), use_container_width=True)
 
 
@@ -75,31 +91,34 @@ def _get_performance_summary(days: int = DEFAULT_LOOKBACK_DAYS):
         SUM(execution_time) as total_execution_time,
         COUNT(*) as total_runs,
         AVG(execution_time) as avg_execution_time
-    FROM {ELEMENTARY_SCHEMA}.model_run_results
-    WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    FROM {ELEMENTARY_SCHEMA}.dbt_run_results
+    WHERE TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
     AND status = 'success'
+    AND resource_type = 'model'
     """
     return run_query(query)
 
 
 def _get_slowest_models(days: int = DEFAULT_LOOKBACK_DAYS, search: str = "", limit: int = 50):
     """Get models ranked by total execution time."""
-    search_filter = f"AND LOWER(unique_id) LIKE LOWER('%{search}%')" if search else ""
+    search_filter = f"AND LOWER(r.unique_id) LIKE LOWER('%{search}%')" if search else ""
 
     query = f"""
     SELECT
-        unique_id,
-        name,
-        schema_name,
-        SUM(execution_time) as total_time,
-        AVG(execution_time) as avg_time,
-        MAX(execution_time) as max_time,
+        r.unique_id,
+        r.name,
+        m.schema_name,
+        SUM(r.execution_time) as total_time,
+        AVG(r.execution_time) as avg_time,
+        MAX(r.execution_time) as max_time,
         COUNT(*) as run_count
-    FROM {ELEMENTARY_SCHEMA}.model_run_results
-    WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
-    AND status = 'success'
+    FROM {ELEMENTARY_SCHEMA}.dbt_run_results r
+    LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.unique_id = m.unique_id
+    WHERE TRY_TO_TIMESTAMP(r.generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    AND r.status = 'success'
+    AND r.resource_type = 'model'
     {search_filter}
-    GROUP BY unique_id, name, schema_name
+    GROUP BY r.unique_id, r.name, m.schema_name
     ORDER BY total_time DESC
     LIMIT {limit}
     """
@@ -110,14 +129,14 @@ def _get_model_time_trend(unique_id: str, days: int = DEFAULT_LOOKBACK_DAYS):
     """Get execution time trend for a specific model."""
     query = f"""
     SELECT
-        DATE_TRUNC('day', generated_at) as run_date,
+        DATE_TRUNC('day', TRY_TO_TIMESTAMP(generated_at)) as run_date,
         AVG(execution_time) as avg_time,
         COUNT(*) as run_count
-    FROM {ELEMENTARY_SCHEMA}.model_run_results
+    FROM {ELEMENTARY_SCHEMA}.dbt_run_results
     WHERE unique_id = '{unique_id}'
-    AND generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    AND TRY_TO_TIMESTAMP(generated_at) >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
     AND status = 'success'
-    GROUP BY DATE_TRUNC('day', generated_at)
+    GROUP BY DATE_TRUNC('day', TRY_TO_TIMESTAMP(generated_at))
     ORDER BY run_date
     """
     return run_query(query)
