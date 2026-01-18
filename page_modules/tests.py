@@ -1,15 +1,21 @@
-"""Tests page - Test results and flaky test detection."""
+"""Tests page - Searchable list of tests with click-through to detail."""
 
 import streamlit as st
-from services.tests_service import get_tests_summary, get_test_run_history, get_models_without_tests, get_flaky_tests
+from services.tests_service import get_tests_summary, get_models_without_tests, get_flaky_tests
 from components.charts import pass_rate_bar_chart
-from config import DEFAULT_LOOKBACK_DAYS, FLAKY_TEST_THRESHOLD
+from config import FLAKY_TEST_THRESHOLD
+
+
+def _truncate(text: str, max_len: int = 50) -> str:
+    """Truncate text with ellipsis."""
+    if not text:
+        return ""
+    return text[:max_len] + "..." if len(text) > max_len else text
 
 
 def render(search_filter: str = ""):
     st.title("Tests")
 
-    # Tabs
     tab_all, tab_flaky, tab_coverage = st.tabs(["All Tests", "Flaky Tests", "Coverage Gaps"])
 
     with tab_all:
@@ -23,12 +29,12 @@ def render(search_filter: str = ""):
 
 
 def _render_all_tests(search_filter: str):
-    """Render all tests sorted by pass rate (lowest first)."""
+    """Render all tests as clickable list."""
     col1, col2 = st.columns([1, 3])
     with col1:
         days = st.selectbox("Time range", [7, 14, 30], index=0, format_func=lambda x: f"Last {x} days", key="tests_days")
-
-    search = search_filter or st.text_input("Search tests", placeholder="Filter by name...", key="tests_search")
+    with col2:
+        search = search_filter or st.text_input("Search tests", placeholder="Filter by name...", key="tests_search")
 
     df = get_tests_summary(days=days, search=search)
 
@@ -47,43 +53,30 @@ def _render_all_tests(search_filter: str):
         else:
             icon = ":red_circle:"
 
-        flaky_badge = " :warning: FLAKY" if row["IS_FLAKY"] else ""
-        status_badge = f" ({row['LATEST_STATUS'].upper()})" if row["LATEST_STATUS"] in ("fail", "error") else ""
+        flaky_badge = " :warning:" if row["IS_FLAKY"] else ""
+        name = _truncate(row["TEST_NAME"])
+        model = row["TABLE_NAME"] or "N/A"
 
-        with st.expander(f"{icon} {row['TEST_NAME']}{flaky_badge}{status_badge}"):
-            col1, col2, col3 = st.columns(3)
-
-            with col1:
-                st.metric("Pass Rate", f"{pass_rate * 100:.0f}%")
-            with col2:
-                st.metric("Total Runs", int(row["TOTAL_RUNS"]))
-            with col3:
-                st.metric("Passed", int(row["PASS_COUNT"]))
-
-            st.caption(f"Model: {row['TABLE_NAME'] or 'N/A'} | Schema: {row['SCHEMA_NAME']}")
-            st.caption(f"Type: {row['TEST_TYPE']} | Last run: {row['LAST_RUN']}")
-
-            # Run history with error details
-            history_df = get_test_run_history(row["TEST_UNIQUE_ID"], days)
-            if not history_df.empty:
-                st.markdown("**Run History:**")
-                for _, h_row in history_df.head(5).iterrows():
-                    status_color = "green" if h_row["STATUS"] == "pass" else "red"
-                    st.markdown(f":{status_color}_circle: **{h_row['STATUS']}** — {h_row['DETECTED_AT']}")
-
-                    # Show error description if test failed
-                    if h_row.get("TEST_RESULTS_DESCRIPTION") and h_row["STATUS"] in ("fail", "error"):
-                        st.error(h_row["TEST_RESULTS_DESCRIPTION"])
-
-                # Show test SQL (from most recent run)
-                latest = history_df.iloc[0]
-                if latest.get("TEST_RESULTS_QUERY"):
-                    with st.expander("View Test SQL"):
-                        st.code(latest["TEST_RESULTS_QUERY"], language="sql")
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1, 1])
+            with cols[0]:
+                st.markdown(f"{icon}{flaky_badge} **{name}**")
+                st.caption(f"{model} | {row['TEST_TYPE']}")
+            with cols[1]:
+                st.caption("Pass Rate")
+                st.write(f"{pass_rate * 100:.0f}%")
+            with cols[2]:
+                st.caption("Runs")
+                st.write(int(row["TOTAL_RUNS"]))
+            with cols[3]:
+                if st.button("View", key=f"test_{row['TEST_UNIQUE_ID']}"):
+                    st.session_state["selected_test"] = row["TEST_UNIQUE_ID"]
+                    st.session_state["selected_model"] = None
+                    st.rerun()
 
 
 def _render_flaky_tests():
-    """Render flaky tests (high failure rate)."""
+    """Render flaky tests with click navigation."""
     st.subheader("Flaky Tests")
     st.caption(f"Tests with >= {FLAKY_TEST_THRESHOLD * 100:.0f}% failure rate over at least 3 runs")
 
@@ -105,19 +98,27 @@ def _render_flaky_tests():
         chart_df["PASS_RATE"] = 1 - chart_df["FAILURE_RATE"]
         st.altair_chart(pass_rate_bar_chart(chart_df), use_container_width=True)
 
-    # Table
-    st.dataframe(
-        df[["TEST_NAME", "TABLE_NAME", "FAILURE_RATE", "TOTAL_RUNS", "FAIL_COUNT"]],
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "TEST_NAME": "Test",
-            "TABLE_NAME": "Model",
-            "FAILURE_RATE": st.column_config.ProgressColumn("Failure Rate", min_value=0, max_value=1, format="%.0f%%"),
-            "TOTAL_RUNS": "Runs",
-            "FAIL_COUNT": "Failures",
-        },
-    )
+    # Clickable list
+    for _, row in df.iterrows():
+        name = _truncate(row["TEST_NAME"])
+        failure_rate = row["FAILURE_RATE"] * 100
+
+        with st.container(border=True):
+            cols = st.columns([3, 1, 1, 1])
+            with cols[0]:
+                st.markdown(f":warning: **{name}**")
+                st.caption(row["TABLE_NAME"] or "N/A")
+            with cols[1]:
+                st.caption("Failure Rate")
+                st.write(f"{failure_rate:.0f}%")
+            with cols[2]:
+                st.caption("Failures")
+                st.write(int(row["FAIL_COUNT"]))
+            with cols[3]:
+                if st.button("View", key=f"flaky_{row['TEST_UNIQUE_ID']}"):
+                    st.session_state["selected_test"] = row["TEST_UNIQUE_ID"]
+                    st.session_state["selected_model"] = None
+                    st.rerun()
 
 
 def _render_coverage_gaps():
@@ -132,13 +133,17 @@ def _render_coverage_gaps():
 
     st.warning(f"**{len(df)} models** have no associated tests")
 
-    st.dataframe(
-        df[["NAME", "SCHEMA_NAME", "DATABASE_NAME"]],
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "NAME": "Model",
-            "SCHEMA_NAME": "Schema",
-            "DATABASE_NAME": "Database",
-        },
-    )
+    for _, row in df.iterrows():
+        name = _truncate(row["NAME"])
+        schema = row["SCHEMA_NAME"] or "unknown"
+
+        with st.container(border=True):
+            cols = st.columns([4, 1])
+            with cols[0]:
+                st.markdown(f"**{name}**")
+                st.caption(f"{schema} | {row['DATABASE_NAME'] or 'N/A'}")
+            with cols[1]:
+                if st.button("View", key=f"gap_{row['UNIQUE_ID']}"):
+                    st.session_state["selected_model"] = row["UNIQUE_ID"]
+                    st.session_state["selected_test"] = None
+                    st.rerun()

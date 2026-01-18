@@ -1,15 +1,22 @@
-"""Alerts page - Current test and model failures."""
+"""Alerts page - Current test and model failures with click navigation."""
 
 import streamlit as st
 from services.alerts_service import get_current_test_failures, get_current_model_failures, get_alert_counts
+
+
+def _truncate(text: str, max_len: int = 50) -> str:
+    """Truncate text with ellipsis."""
+    if not text:
+        return ""
+    return text[:max_len] + "..." if len(text) > max_len else text
 
 
 def render(search_filter: str = ""):
     st.title("Alerts")
 
     # Filters
-    filter_cols = st.columns([1, 2, 3])
-    with filter_cols[0]:
+    col1, _ = st.columns([1, 4])
+    with col1:
         days = st.selectbox("Time range", [7, 14, 30], index=0, format_func=lambda x: f"{x}d")
 
     # Alert counts summary
@@ -38,7 +45,7 @@ def render(search_filter: str = ""):
 
     st.divider()
 
-    # Side-by-side layout for tests and models
+    # Side-by-side layout
     test_col, model_col = st.columns(2)
 
     with test_col:
@@ -51,7 +58,7 @@ def render(search_filter: str = ""):
 
 
 def _render_test_failures(days: int, search_filter: str):
-    """Render test failures."""
+    """Render test failures with click navigation."""
     df = get_current_test_failures(days, search_filter)
 
     if df.empty:
@@ -59,30 +66,24 @@ def _render_test_failures(days: int, search_filter: str):
         return
 
     for _, row in df.iterrows():
+        name = _truncate(row["TEST_NAME"])
+        model = row["TABLE_NAME"] or "N/A"
+
         with st.container(border=True):
-            st.markdown(f"**{row['TEST_NAME']}**")
-            st.caption(f"{row['TABLE_NAME'] or 'N/A'} | {row['TEST_TYPE']}")
-
-            with st.expander("Details"):
-                cols = st.columns(2)
-                with cols[0]:
-                    st.markdown(f"**Schema:** {row['SCHEMA_NAME']}")
-                    st.markdown(f"**Status:** {row['STATUS']}")
-                with cols[1]:
-                    st.markdown(f"**Detected:** {row['DETECTED_AT']}")
-                    if row["COLUMN_NAME"]:
-                        st.markdown(f"**Column:** {row['COLUMN_NAME']}")
-
-                if row["TEST_RESULTS_DESCRIPTION"]:
-                    st.code(row["TEST_RESULTS_DESCRIPTION"], language=None)
-
-                if row["TEST_RESULTS_QUERY"]:
-                    st.markdown("**Debug Query:**")
-                    st.code(row["TEST_RESULTS_QUERY"], language="sql")
+            cols = st.columns([4, 1])
+            with cols[0]:
+                st.markdown(f":red_circle: **{name}**")
+                st.caption(f"{model} | {row['TEST_TYPE']}")
+                st.caption(f"{row['SCHEMA_NAME']} | {str(row['DETECTED_AT'])[:16]}")
+            with cols[1]:
+                if st.button("View", key=f"alert_test_{row['TEST_UNIQUE_ID']}"):
+                    st.session_state["selected_test"] = row["TEST_UNIQUE_ID"]
+                    st.session_state["selected_model"] = None
+                    st.rerun()
 
 
 def _render_model_failures(days: int, search_filter: str):
-    """Render model failures."""
+    """Render model failures with click navigation."""
     df = get_current_model_failures(days, search_filter)
 
     if df.empty:
@@ -90,22 +91,20 @@ def _render_model_failures(days: int, search_filter: str):
         return
 
     for _, row in df.iterrows():
+        name = _truncate(row["NAME"])
+        schema = row["SCHEMA_NAME"] or "unknown"
+
         with st.container(border=True):
-            st.markdown(f"**{row['NAME']}**")
-            schema = row['SCHEMA_NAME'] or 'unknown'
-            st.caption(f"{schema} | {row['STATUS']}")
-
-            with st.expander("Details"):
-                cols = st.columns(2)
-                with cols[0]:
-                    st.markdown(f"**Database:** {row['DATABASE_NAME']}")
-                    st.markdown(f"**Schema:** {schema}")
-                with cols[1]:
-                    st.markdown(f"**Last Run:** {row['GENERATED_AT']}")
-                    if row["EXECUTION_TIME"]:
-                        st.markdown(f"**Time:** {row['EXECUTION_TIME']:.1f}s")
-
-                if row.get("MESSAGE"):
-                    st.error(row["MESSAGE"])
-
-                st.caption(f"`{row['UNIQUE_ID']}`")
+            cols = st.columns([4, 1])
+            with cols[0]:
+                st.markdown(f":red_circle: **{name}**")
+                st.caption(f"{schema} | {row['STATUS']}")
+                if row["EXECUTION_TIME"]:
+                    st.caption(f"{row['EXECUTION_TIME']:.1f}s | {str(row['GENERATED_AT'])[:16]}")
+                else:
+                    st.caption(str(row["GENERATED_AT"])[:16])
+            with cols[1]:
+                if st.button("View", key=f"alert_model_{row['UNIQUE_ID']}"):
+                    st.session_state["selected_model"] = row["UNIQUE_ID"]
+                    st.session_state["selected_test"] = None
+                    st.rerun()

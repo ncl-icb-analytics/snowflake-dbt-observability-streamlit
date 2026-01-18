@@ -46,24 +46,25 @@ def get_recent_runs(limit: int = 10):
     query = f"""
     SELECT
         invocation_id,
-        TRY_TO_TIMESTAMP(generated_at) as generated_at,
+        generated_at,
         command,
         dbt_version,
         full_refresh,
         target_name,
         selected
     FROM {ELEMENTARY_SCHEMA}.dbt_invocations
-    ORDER BY TRY_TO_TIMESTAMP(generated_at) DESC
+    ORDER BY generated_at DESC
     LIMIT {limit}
     """
     return run_query(query)
 
 
 def get_top_failures(limit: int = 5):
-    """Get top current failures for 'needs attention' section."""
+    """Get top current failures for 'needs attention' section with IDs for navigation."""
     query = f"""
     WITH test_failures AS (
         SELECT
+            test_unique_id as unique_id,
             test_name as name,
             'test' as type,
             detected_at as failed_at,
@@ -75,6 +76,7 @@ def get_top_failures(limit: int = 5):
     ),
     model_failures AS (
         SELECT
+            r.unique_id,
             r.name,
             'model' as type,
             TRY_TO_TIMESTAMP(r.generated_at) as failed_at,
@@ -86,7 +88,7 @@ def get_top_failures(limit: int = 5):
         AND r.status IN ('fail', 'error')
         AND r.resource_type = 'model'
     )
-    SELECT name, type, failed_at, schema_name
+    SELECT unique_id, name, type, failed_at, schema_name
     FROM (
         SELECT * FROM test_failures WHERE rn = 1
         UNION ALL

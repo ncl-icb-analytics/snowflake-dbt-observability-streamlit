@@ -127,3 +127,53 @@ def get_flaky_tests(days: int = DEFAULT_LOOKBACK_DAYS, limit: int = 20):
     LIMIT {limit}
     """
     return run_query(query)
+
+
+def get_tests_for_model(model_name: str, days: int = DEFAULT_LOOKBACK_DAYS):
+    """Get tests associated with a specific model."""
+    query = f"""
+    WITH test_stats AS (
+        SELECT
+            test_unique_id,
+            test_name,
+            test_type,
+            schema_name,
+            COUNT(*) as total_runs,
+            SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) as pass_count
+        FROM {ELEMENTARY_SCHEMA}.elementary_test_results
+        WHERE LOWER(table_name) = LOWER('{model_name}')
+        AND detected_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+        GROUP BY test_unique_id, test_name, test_type, schema_name
+    )
+    SELECT
+        test_unique_id,
+        test_name,
+        test_type,
+        schema_name,
+        total_runs,
+        pass_count,
+        ROUND(pass_count::FLOAT / NULLIF(total_runs, 0), 3) as pass_rate
+    FROM test_stats
+    ORDER BY pass_rate ASC NULLS LAST
+    """
+    return run_query(query)
+
+
+def get_test_details(test_unique_id: str):
+    """Get metadata for a specific test."""
+    query = f"""
+    SELECT
+        test_unique_id,
+        test_name,
+        test_type,
+        table_name,
+        schema_name,
+        database_name,
+        column_name,
+        test_params
+    FROM {ELEMENTARY_SCHEMA}.elementary_test_results
+    WHERE test_unique_id = '{test_unique_id}'
+    ORDER BY detected_at DESC
+    LIMIT 1
+    """
+    return run_query(query)
