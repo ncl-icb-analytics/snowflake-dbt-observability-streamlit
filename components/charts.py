@@ -93,7 +93,7 @@ def row_count_trend_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
         .mark_line(point=True)
         .encode(
             x=alt.X("RUN_STARTED_AT:T", title="Date"),
-            y=alt.Y("ROW_COUNT:Q", title="Row Count"),
+            y=alt.Y("ROW_COUNT:Q", title="Row Count", scale=alt.Scale(zero=False)),
             tooltip=["RUN_STARTED_AT:T", "ROW_COUNT:Q"],
         )
         .properties(height=height)
@@ -102,23 +102,33 @@ def row_count_trend_chart(df: pd.DataFrame, height: int = 300) -> alt.Chart:
 
 
 def row_count_change_chart(df: pd.DataFrame, height: int = 250) -> alt.Chart:
-    """Bar chart showing row count changes with green for growth, red for reduction."""
+    """Bar chart showing daily row count changes (net change per day)."""
     if df.empty or len(df) < 2:
         return alt.Chart().mark_text().encode(text=alt.value("Not enough data"))
 
-    # Prepare data: calculate change from previous row
+    # Prepare data: get first and last row count per day
     df = df.sort_values("RUN_STARTED_AT").copy()
-    df["PREV_COUNT"] = df["ROW_COUNT"].shift(1)
-    df["CHANGE"] = df["ROW_COUNT"] - df["PREV_COUNT"]
-    df["CHANGE_PCT"] = ((df["CHANGE"] / df["PREV_COUNT"]) * 100).round(1)
-    df = df.dropna(subset=["CHANGE"])
+    df["DATE"] = pd.to_datetime(df["RUN_STARTED_AT"]).dt.date
 
-    if df.empty:
+    # For each day, get the net change (last count - first count of previous day)
+    daily = df.groupby("DATE").agg(
+        FIRST_COUNT=("ROW_COUNT", "first"),
+        LAST_COUNT=("ROW_COUNT", "last"),
+    ).reset_index()
+    daily["DATE"] = pd.to_datetime(daily["DATE"])
+
+    # Calculate change from previous day's last count
+    daily["PREV_COUNT"] = daily["LAST_COUNT"].shift(1)
+    daily["CHANGE"] = daily["LAST_COUNT"] - daily["PREV_COUNT"]
+    daily["CHANGE_PCT"] = ((daily["CHANGE"] / daily["PREV_COUNT"]) * 100).round(1)
+    daily = daily.dropna(subset=["CHANGE"])
+
+    if daily.empty:
         return alt.Chart().mark_text().encode(text=alt.value("Not enough data"))
 
     # Bar chart with conditional coloring
-    bars = alt.Chart(df).mark_bar().encode(
-        x=alt.X("RUN_STARTED_AT:T", title="Date"),
+    bars = alt.Chart(daily).mark_bar().encode(
+        x=alt.X("DATE:T", title="Date"),
         y=alt.Y("CHANGE:Q", title="Row Change"),
         color=alt.condition(
             alt.datum.CHANGE >= 0,
@@ -126,10 +136,10 @@ def row_count_change_chart(df: pd.DataFrame, height: int = 250) -> alt.Chart:
             alt.value("#dc3545"),
         ),
         tooltip=[
-            alt.Tooltip("RUN_STARTED_AT:T", title="Date"),
+            alt.Tooltip("DATE:T", title="Date"),
             alt.Tooltip("CHANGE:Q", title="Change", format=","),
             alt.Tooltip("CHANGE_PCT:Q", title="Change %", format="+.1f"),
-            alt.Tooltip("ROW_COUNT:Q", title="Total Rows", format=","),
+            alt.Tooltip("LAST_COUNT:Q", title="Total Rows", format=","),
         ],
     )
 
