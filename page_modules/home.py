@@ -152,40 +152,39 @@ def render(search_filter: str = ""):
         else:
             # Show count from KPIs for consistency with banner/alerts
             st.caption(f"{total_failures} active failures")
-            with st.container(height=500):
-                for _, f_row in failures.iterrows():
-                    icon = ":test_tube:" if f_row["TYPE"] == "test" else ":package:"
-                    unique_id = f_row["UNIQUE_ID"]
-                    model_path = f_row.get("MODEL_PATH") or ""
+            for _, f_row in failures.iterrows():
+                icon = ":test_tube:" if f_row["TYPE"] == "test" else ":package:"
+                unique_id = f_row["UNIQUE_ID"]
+                model_path = f_row.get("MODEL_PATH") or ""
 
-                    with st.container(border=True):
-                        col1, col2 = st.columns([4, 1])
-                        with col1:
-                            if f_row["TYPE"] == "test":
-                                # For tests: show model name as title, test name as subtitle
-                                model_name = f_row.get("MODEL_NAME") or "unknown"
-                                test_name = _truncate(f_row["NAME"])
-                                st.markdown(f"{icon} **{model_name}**")
-                                st.caption(f"{test_name}")
-                            else:
-                                # For models: show model name as title
-                                name = _truncate(f_row["NAME"])
-                                st.markdown(f"{icon} **{name}**")
-                            # Show path for both
-                            if model_path:
-                                st.caption(_truncate(model_path, 60))
-                            st.caption(_format_timestamp(f_row['FAILED_AT']))
-                        with col2:
-                            if f_row["TYPE"] == "test":
-                                if st.button("View", key=f"home_test_{unique_id}"):
-                                    st.session_state["selected_test"] = unique_id
-                                    st.session_state["selected_model"] = None
-                                    st.rerun()
-                            else:
-                                if st.button("View", key=f"home_model_{unique_id}"):
-                                    st.session_state["selected_model"] = unique_id
-                                    st.session_state["selected_test"] = None
-                                    st.rerun()
+                with st.container(border=True):
+                    col1, col2 = st.columns([4, 1])
+                    with col1:
+                        if f_row["TYPE"] == "test":
+                            # For tests: show model name as title, test name as subtitle
+                            model_name = f_row.get("MODEL_NAME") or "unknown"
+                            test_name = _truncate(f_row["NAME"])
+                            st.markdown(f"{icon} **{model_name}**")
+                            st.caption(f"{test_name}")
+                        else:
+                            # For models: show model name as title
+                            name = _truncate(f_row["NAME"])
+                            st.markdown(f"{icon} **{name}**")
+                        # Show path for both
+                        if model_path:
+                            st.caption(_truncate(model_path, 60))
+                        st.caption(_format_timestamp(f_row['FAILED_AT']))
+                    with col2:
+                        if f_row["TYPE"] == "test":
+                            if st.button("View", key=f"home_test_{unique_id}"):
+                                st.session_state["selected_test"] = unique_id
+                                st.session_state["selected_model"] = None
+                                st.rerun()
+                        else:
+                            if st.button("View", key=f"home_model_{unique_id}"):
+                                st.session_state["selected_model"] = unique_id
+                                st.session_state["selected_test"] = None
+                                st.rerun()
 
     with col_runs:
         st.subheader("Recent Runs")
