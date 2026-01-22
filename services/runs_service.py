@@ -61,7 +61,6 @@ def get_invocation_details(invocation_id: str):
         i.run_started_at,
         i.run_completed_at,
         i.command,
-        i.dbt_command,
         i.target_name,
         i.dbt_user,
         i.selected,

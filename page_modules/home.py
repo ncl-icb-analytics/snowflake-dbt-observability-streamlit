@@ -150,9 +150,9 @@ def render(search_filter: str = ""):
         if failures.empty:
             st.info("No current failures")
         else:
-            # Show count and scrollable container for all failures
-            st.caption(f"{len(failures)} active failures")
-            with st.container(height=400):
+            # Show count from KPIs for consistency with banner/alerts
+            st.caption(f"{total_failures} active failures")
+            with st.container(height=500):
                 for _, f_row in failures.iterrows():
                     icon = ":test_tube:" if f_row["TYPE"] == "test" else ":package:"
                     unique_id = f_row["UNIQUE_ID"]
