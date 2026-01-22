@@ -55,6 +55,10 @@ def main():
         test_detail.render(st.session_state["selected_test"])
         return
 
+    if st.session_state.get("selected_invocation"):
+        runs.render()
+        return
+
     # Sidebar navigation
     st.sidebar.title("dbt Observability")
     page_name = st.sidebar.radio("Navigation", list(PAGES.keys()), label_visibility="collapsed")
