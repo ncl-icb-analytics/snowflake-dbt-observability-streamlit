@@ -338,12 +338,16 @@ def _render_waterfall_chart(invocation_id: str, details):
         st.info("No execution timing data available for waterfall chart")
         return
 
-    # Convert to datetime
-    timing_df["START"] = pd.to_datetime(timing_df["EXECUTE_STARTED_AT"])
-    timing_df["END"] = pd.to_datetime(timing_df["EXECUTE_COMPLETED_AT"])
+    # Convert to datetime (remove timezone to avoid tz-naive/tz-aware mismatch)
+    timing_df["START"] = pd.to_datetime(timing_df["EXECUTE_STARTED_AT"]).dt.tz_localize(None)
+    timing_df["END"] = pd.to_datetime(timing_df["EXECUTE_COMPLETED_AT"]).dt.tz_localize(None)
 
     # Get run start time as reference
     run_start = pd.to_datetime(details.get("RUN_STARTED_AT"))
+    if hasattr(run_start, 'tz_localize'):
+        run_start = run_start.tz_localize(None) if run_start.tzinfo else run_start
+    elif hasattr(run_start, 'tzinfo') and run_start.tzinfo is not None:
+        run_start = run_start.replace(tzinfo=None)
     if pd.isna(run_start):
         run_start = timing_df["START"].min()
 
