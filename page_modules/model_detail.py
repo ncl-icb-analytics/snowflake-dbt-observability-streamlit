@@ -10,7 +10,7 @@ from services.models_service import (
     get_model_latest_row_count,
 )
 from services.tests_service import get_tests_for_model
-from components.charts import execution_time_chart, run_status_timeline, row_count_trend_chart, row_count_change_chart
+from components.charts import execution_time_chart, row_count_trend_chart, row_count_change_chart
 from config import DEFAULT_LOOKBACK_DAYS
 
 
@@ -132,10 +132,7 @@ def render(unique_id: str):
 
     st.caption(f"Last run: {latest['GENERATED_AT']}")
 
-    # Run history - only show timeline if more than 2 data points
     st.subheader("Run History")
-    if len(history_df) > 2:
-        st.altair_chart(run_status_timeline(history_df), use_container_width=True)
 
     # Get row count history for showing in run cards
     row_count_history = {}
@@ -198,6 +195,12 @@ def render(unique_id: str):
         else:
             st.info("Not enough row count history to display charts (need at least 2 data points)")
 
+    # Compiled SQL from most recent run
+    if latest.get("COMPILED_CODE"):
+        st.divider()
+        st.subheader("Compiled SQL")
+        st.code(latest["COMPILED_CODE"], language="sql")
+
     # Applied tests
     st.divider()
     st.subheader("Applied Tests")
@@ -207,7 +210,12 @@ def render(unique_id: str):
     else:
         for _, test_row in tests_df.iterrows():
             latest_status = (test_row.get("LATEST_STATUS") or "").lower()
-            icon = "🟢" if latest_status == "pass" else "🔴"
+            if latest_status == "pass":
+                icon = "🟢"
+            elif latest_status == "warn":
+                icon = "🟡"
+            else:
+                icon = "🔴"
 
             if st.button(f"{icon} {test_row['TEST_NAME']}", key=f"test_{test_row['TEST_UNIQUE_ID']}"):
                 st.session_state["selected_test"] = test_row["TEST_UNIQUE_ID"]

@@ -145,43 +145,47 @@ def render(search_filter: str = ""):
 
     with col_failures:
         st.subheader("Needs Attention")
-        failures = get_top_failures(limit=8, days=time_range)
+        # Get all current failures (no limit)
+        failures = get_top_failures(limit=100, days=time_range)
         if failures.empty:
             st.info("No current failures")
         else:
-            for _, f_row in failures.iterrows():
-                icon = ":test_tube:" if f_row["TYPE"] == "test" else ":package:"
-                unique_id = f_row["UNIQUE_ID"]
-                model_path = f_row.get("MODEL_PATH") or ""
+            # Show count and scrollable container for all failures
+            st.caption(f"{len(failures)} active failures")
+            with st.container(height=400):
+                for _, f_row in failures.iterrows():
+                    icon = ":test_tube:" if f_row["TYPE"] == "test" else ":package:"
+                    unique_id = f_row["UNIQUE_ID"]
+                    model_path = f_row.get("MODEL_PATH") or ""
 
-                with st.container(border=True):
-                    col1, col2 = st.columns([4, 1])
-                    with col1:
-                        if f_row["TYPE"] == "test":
-                            # For tests: show model name as title, test name as subtitle
-                            model_name = f_row.get("MODEL_NAME") or "unknown"
-                            test_name = _truncate(f_row["NAME"])
-                            st.markdown(f"{icon} **{model_name}**")
-                            st.caption(f"{test_name}")
-                        else:
-                            # For models: show model name as title
-                            name = _truncate(f_row["NAME"])
-                            st.markdown(f"{icon} **{name}**")
-                        # Show path for both
-                        if model_path:
-                            st.caption(_truncate(model_path, 60))
-                        st.caption(_format_timestamp(f_row['FAILED_AT']))
-                    with col2:
-                        if f_row["TYPE"] == "test":
-                            if st.button("View", key=f"home_test_{unique_id}"):
-                                st.session_state["selected_test"] = unique_id
-                                st.session_state["selected_model"] = None
-                                st.rerun()
-                        else:
-                            if st.button("View", key=f"home_model_{unique_id}"):
-                                st.session_state["selected_model"] = unique_id
-                                st.session_state["selected_test"] = None
-                                st.rerun()
+                    with st.container(border=True):
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            if f_row["TYPE"] == "test":
+                                # For tests: show model name as title, test name as subtitle
+                                model_name = f_row.get("MODEL_NAME") or "unknown"
+                                test_name = _truncate(f_row["NAME"])
+                                st.markdown(f"{icon} **{model_name}**")
+                                st.caption(f"{test_name}")
+                            else:
+                                # For models: show model name as title
+                                name = _truncate(f_row["NAME"])
+                                st.markdown(f"{icon} **{name}**")
+                            # Show path for both
+                            if model_path:
+                                st.caption(_truncate(model_path, 60))
+                            st.caption(_format_timestamp(f_row['FAILED_AT']))
+                        with col2:
+                            if f_row["TYPE"] == "test":
+                                if st.button("View", key=f"home_test_{unique_id}"):
+                                    st.session_state["selected_test"] = unique_id
+                                    st.session_state["selected_model"] = None
+                                    st.rerun()
+                            else:
+                                if st.button("View", key=f"home_model_{unique_id}"):
+                                    st.session_state["selected_model"] = unique_id
+                                    st.session_state["selected_test"] = None
+                                    st.rerun()
 
     with col_runs:
         st.subheader("Recent Runs")
@@ -190,33 +194,40 @@ def render(search_filter: str = ""):
             st.info("No recent runs")
         else:
             for _, r_row in runs.iterrows():
+                invocation_id = r_row["INVOCATION_ID"]
                 with st.container(border=True):
-                    # Use created_at (TIMESTAMP_NTZ) for display
-                    st.markdown(f"**{_format_timestamp(r_row['CREATED_AT'])}**")
-                    cmd = r_row["COMMAND"] or "dbt"
-                    target = r_row["TARGET_NAME"] or ""
-                    warehouse = r_row.get("WAREHOUSE") or ""
-                    selected = r_row.get("SELECTED") or ""
-                    models_run = int(r_row.get("MODELS_RUN") or 0)
-                    success = int(r_row.get("SUCCESS_COUNT") or 0)
-                    fail = int(r_row.get("FAIL_COUNT") or 0)
-                    duration = r_row.get("DURATION_SECONDS") or 0
+                    col1, col2 = st.columns([4, 1])
+                    with col1:
+                        # Use created_at (TIMESTAMP_NTZ) for display
+                        st.markdown(f"**{_format_timestamp(r_row['CREATED_AT'])}**")
+                        cmd = r_row["COMMAND"] or "dbt"
+                        target = r_row["TARGET_NAME"] or ""
+                        warehouse = r_row.get("WAREHOUSE") or ""
+                        selected = r_row.get("SELECTED") or ""
+                        models_run = int(r_row.get("MODELS_RUN") or 0)
+                        success = int(r_row.get("SUCCESS_COUNT") or 0)
+                        fail = int(r_row.get("FAIL_COUNT") or 0)
+                        duration = r_row.get("DURATION_SECONDS") or 0
 
-                    # First line: command, target, warehouse
-                    info_parts = [cmd, target]
-                    if warehouse:
-                        info_parts.append(warehouse)
-                    st.caption(" | ".join(p for p in info_parts if p))
+                        # First line: command, target, warehouse
+                        info_parts = [cmd, target]
+                        if warehouse:
+                            info_parts.append(warehouse)
+                        st.caption(" | ".join(p for p in info_parts if p))
 
-                    # Show selection if present (truncate if too long)
-                    if selected:
-                        st.caption(_truncate(selected, 60))
+                        # Show selection if present (truncate if too long)
+                        if selected:
+                            st.caption(_truncate(selected, 60))
 
-                    # Run stats
-                    if models_run > 0:
-                        time_str = _format_duration(duration)
-                        if fail > 0:
-                            st.markdown(f"{models_run} models | 🟢 {success} 🔴 {fail} | {time_str}")
-                        else:
-                            st.markdown(f"{models_run} models | 🟢 {success} | {time_str}")
+                        # Run stats
+                        if models_run > 0:
+                            time_str = _format_duration(duration)
+                            if fail > 0:
+                                st.markdown(f"{models_run} models | 🟢 {success} 🔴 {fail} | {time_str}")
+                            else:
+                                st.markdown(f"{models_run} models | 🟢 {success} | {time_str}")
+                    with col2:
+                        if st.button("View", key=f"home_run_{invocation_id}"):
+                            st.session_state["selected_invocation"] = invocation_id
+                            st.rerun()
 

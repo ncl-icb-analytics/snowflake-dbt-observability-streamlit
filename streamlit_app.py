@@ -6,13 +6,14 @@ from config import PAGE_CONFIG
 
 st.set_page_config(**PAGE_CONFIG)
 
-from page_modules import home, alerts, models, tests, growth, credits, model_detail, test_detail
+from page_modules import home, alerts, models, tests, runs, growth, credits, model_detail, test_detail
 
 PAGES = {
     "Home": home,
     "Alerts": alerts,
     "Models": models,
     "Tests": tests,
+    "Runs": runs,
     "Growth": growth,
     "Performance": credits,
 }
@@ -42,6 +43,8 @@ def main():
         st.session_state["selected_model"] = None
     if "selected_test" not in st.session_state:
         st.session_state["selected_test"] = None
+    if "selected_invocation" not in st.session_state:
+        st.session_state["selected_invocation"] = None
 
     # Check if viewing detail page
     if st.session_state.get("selected_model"):

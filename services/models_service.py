@@ -130,7 +130,7 @@ def get_models_count(search: str = ""):
 
 
 def get_model_run_history(unique_id: str, days: int = DEFAULT_LOOKBACK_DAYS):
-    """Get run history for a specific model including error messages."""
+    """Get run history for a specific model including error messages and compiled code."""
     query = f"""
     SELECT
         unique_id,
@@ -142,7 +142,8 @@ def get_model_run_history(unique_id: str, days: int = DEFAULT_LOOKBACK_DAYS):
         compile_completed_at,
         execute_started_at,
         execute_completed_at,
-        message
+        message,
+        compiled_code
     FROM {ELEMENTARY_SCHEMA}.dbt_run_results
     WHERE unique_id = '{unique_id}'
     AND generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())

@@ -1,9 +1,9 @@
 """Tests page - Searchable list of tests with click-through to detail."""
 
 import streamlit as st
-from services.tests_service import get_tests_summary, get_models_without_tests, get_flaky_tests
+from services.tests_service import get_tests_summary, get_tests_count, get_models_without_tests, get_flaky_tests
 from components.charts import pass_rate_bar_chart
-from config import FLAKY_TEST_THRESHOLD
+from config import FLAKY_TEST_THRESHOLD, TESTS_PAGE_SIZE
 
 
 def _truncate(text: str, max_len: int = 50) -> str:
@@ -29,42 +29,81 @@ def render(search_filter: str = ""):
 
 
 def _render_all_tests():
-    """Render all tests as clickable list."""
+    """Render all tests as clickable list with pagination."""
     col1, col2 = st.columns([3, 1])
     with col1:
         search = st.text_input("Search tests", placeholder="Filter by name or model...", key="tests_search")
     with col2:
         days = st.selectbox("Range", [7, 14, 30], index=0, format_func=lambda x: f"{x}d", key="tests_days")
 
-    df = get_tests_summary(days=days, search=search)
+    # Get total count for pagination
+    total_count_df = get_tests_count(days=days, search=search)
+    total_tests = int(total_count_df.iloc[0]["TOTAL"]) if not total_count_df.empty else 0
+
+    # Pagination controls
+    page_size = TESTS_PAGE_SIZE
+    total_pages = max(1, (total_tests + page_size - 1) // page_size)
+
+    if "tests_page" not in st.session_state:
+        st.session_state["tests_page"] = 0
+
+    # Reset page if search changes
+    current_page = st.session_state["tests_page"]
+    if current_page >= total_pages:
+        current_page = 0
+        st.session_state["tests_page"] = 0
+
+    offset = current_page * page_size
+    df = get_tests_summary(days=days, search=search, limit=page_size, offset=offset)
 
     if df.empty:
         st.info("No test runs found")
         return
 
-    st.write(f"**{len(df)} tests** (sorted by pass rate, lowest first)")
+    # Header with count and pagination
+    header_cols = st.columns([3, 2])
+    with header_cols[0]:
+        st.write(f"**{total_tests} tests** (sorted by pass rate, lowest first)")
+    with header_cols[1]:
+        if total_pages > 1:
+            nav_cols = st.columns([1, 2, 1])
+            with nav_cols[0]:
+                if st.button("← Prev", disabled=current_page == 0, key="tests_prev"):
+                    st.session_state["tests_page"] = current_page - 1
+                    st.rerun()
+            with nav_cols[1]:
+                st.caption(f"Page {current_page + 1} of {total_pages}")
+            with nav_cols[2]:
+                if st.button("Next →", disabled=current_page >= total_pages - 1, key="tests_next"):
+                    st.session_state["tests_page"] = current_page + 1
+                    st.rerun()
 
     for _, row in df.iterrows():
         pass_rate = row["PASS_RATE"] or 0
-        if pass_rate >= 0.95:
+        latest_status = (row.get("LATEST_STATUS") or "").lower()
+
+        # Icon based on latest status, not pass rate
+        if latest_status == "pass":
             icon = "🟢"
-        elif pass_rate >= 0.8:
-            icon = "🟠"
-        else:
+        elif latest_status == "warn":
+            icon = "🟡"
+        elif latest_status in ("fail", "error"):
             icon = "🔴"
+        else:
+            icon = "⚪"
 
         flaky_badge = " ⚠️" if row["IS_FLAKY"] else ""
-        # Use short_name if available
         short_name = row.get("SHORT_NAME") or row["TEST_NAME"]
-        name = _truncate(short_name)
+        test_name = _truncate(short_name)
         model = row["TABLE_NAME"] or "N/A"
         test_ns = row.get("TEST_NAMESPACE") or row["TEST_TYPE"] or ""
 
         with st.container(border=True):
             cols = st.columns([3, 1, 1, 1])
             with cols[0]:
-                st.markdown(f"{icon}{flaky_badge} **{name}**")
-                st.caption(f"{model} | {test_ns}" if test_ns else model)
+                # Show model name as primary, test name as secondary
+                st.markdown(f"{icon}{flaky_badge} **{model}**")
+                st.caption(f"{test_name} | {test_ns}" if test_ns else test_name)
             with cols[1]:
                 st.caption("Pass Rate")
                 st.write(f"{pass_rate * 100:.0f}%")

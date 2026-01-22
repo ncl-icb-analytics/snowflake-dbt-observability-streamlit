@@ -16,7 +16,9 @@ DEFAULT_LOOKBACK_DAYS = 7
 MAX_LOOKBACK_DAYS = 30
 
 # Pagination
-DEFAULT_PAGE_SIZE = 50
+DEFAULT_PAGE_SIZE = 100
+MODELS_PAGE_SIZE = 200
+TESTS_PAGE_SIZE = 200
 
 # Cache TTL (seconds) - mainly for UI rerender efficiency
 CACHE_TTL = 300

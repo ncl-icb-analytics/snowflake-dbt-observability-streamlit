@@ -2,7 +2,7 @@
 
 import streamlit as st
 from services.models_service import get_models_summary, get_models_count, get_model_paths
-from config import DEFAULT_LOOKBACK_DAYS
+from config import DEFAULT_LOOKBACK_DAYS, MODELS_PAGE_SIZE
 
 
 def _truncate(text: str, max_len: int = 50) -> str:
@@ -118,7 +118,7 @@ def _render_slow_models(search_filter: str, total_models: int):
 
 
 def _render_path_browser(total_models: int):
-    """Render path-based folder browser."""
+    """Render path-based folder browser with pagination."""
     # Get all paths
     paths_df = get_model_paths()
     if paths_df.empty:
@@ -150,7 +150,20 @@ def _render_path_browser(total_models: int):
     else:
         search = ""
 
-    df = get_models_summary(days=days, search=search, show_all=True, limit=500)
+    # Pagination
+    page_size = MODELS_PAGE_SIZE
+    total_pages = max(1, (total_models + page_size - 1) // page_size)
+
+    if "models_page" not in st.session_state:
+        st.session_state["models_page"] = 0
+
+    current_page = st.session_state["models_page"]
+    if current_page >= total_pages:
+        current_page = 0
+        st.session_state["models_page"] = 0
+
+    offset = current_page * page_size
+    df = get_models_summary(days=days, search=search, show_all=True, limit=page_size, offset=offset)
 
     if df.empty:
         if search:
@@ -159,7 +172,23 @@ def _render_path_browser(total_models: int):
             st.info("No models found")
         return
 
-    st.write(f"**{len(df)} models**")
+    # Header with pagination
+    header_cols = st.columns([3, 2])
+    with header_cols[0]:
+        st.write(f"**{total_models} models**")
+    with header_cols[1]:
+        if total_pages > 1:
+            nav_cols = st.columns([1, 2, 1])
+            with nav_cols[0]:
+                if st.button("← Prev", disabled=current_page == 0, key="models_prev"):
+                    st.session_state["models_page"] = current_page - 1
+                    st.rerun()
+            with nav_cols[1]:
+                st.caption(f"Page {current_page + 1} of {total_pages}")
+            with nav_cols[2]:
+                if st.button("Next →", disabled=current_page >= total_pages - 1, key="models_next"):
+                    st.session_state["models_page"] = current_page + 1
+                    st.rerun()
 
     # Model list
     for _, row in df.iterrows():

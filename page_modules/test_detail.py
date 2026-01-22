@@ -107,7 +107,13 @@ def render(test_unique_id: str):
     st.subheader("Run History")
 
     for _, row in history_df.iterrows():
-        status_icon = "🟢" if row["STATUS"] == "pass" else "🔴"
+        status = row["STATUS"].lower()
+        if status == "pass":
+            status_icon = "🟢"
+        elif status == "warn":
+            status_icon = "🟡"
+        else:
+            status_icon = "🔴"
 
         with st.container(border=True):
             cols = st.columns([2, 1])
@@ -116,8 +122,11 @@ def render(test_unique_id: str):
             with cols[1]:
                 st.caption(str(row["DETECTED_AT"])[:16])
 
-            if row.get("TEST_RESULTS_DESCRIPTION") and row["STATUS"] in ("fail", "error"):
-                st.error(row["TEST_RESULTS_DESCRIPTION"])
+            if row.get("TEST_RESULTS_DESCRIPTION") and status in ("fail", "error", "warn"):
+                if status == "warn":
+                    st.warning(row["TEST_RESULTS_DESCRIPTION"])
+                else:
+                    st.error(row["TEST_RESULTS_DESCRIPTION"])
 
     # Show test SQL from most recent run
     if latest.get("TEST_RESULTS_QUERY"):

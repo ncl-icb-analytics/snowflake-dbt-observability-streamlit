@@ -166,6 +166,19 @@ def get_tests_for_model(model_name: str, days: int = DEFAULT_LOOKBACK_DAYS):
     return run_query(query)
 
 
+def get_tests_count(days: int = DEFAULT_LOOKBACK_DAYS, search: str = ""):
+    """Get total count of tests with runs in the time period."""
+    search_filter = f"AND LOWER(test_unique_id) LIKE LOWER('%{search}%')" if search else ""
+
+    query = f"""
+    SELECT COUNT(DISTINCT test_unique_id) as total
+    FROM {ELEMENTARY_SCHEMA}.elementary_test_results
+    WHERE detected_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    {search_filter}
+    """
+    return run_query(query)
+
+
 def get_test_details(test_unique_id: str):
     """Get metadata for a specific test, joining with dbt_tests for richer info."""
     query = f"""

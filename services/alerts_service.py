@@ -121,3 +121,70 @@ def get_alert_counts(days: int = DEFAULT_LOOKBACK_DAYS):
         (SELECT COUNT(*) FROM model_ranked WHERE rn = 1 AND status IN ('fail', 'error')) as failed_models
     """
     return run_query(query)
+
+
+def get_historical_test_failures(days: int = DEFAULT_LOOKBACK_DAYS, search: str = ""):
+    """Get all test failures in time period (not just current failures)."""
+    search_filter = f"AND LOWER(r.test_unique_id) LIKE LOWER('%{search}%')" if search else ""
+
+    query = f"""
+    SELECT
+        r.test_unique_id,
+        r.test_name,
+        COALESCE(t.short_name, r.test_name) as short_name,
+        COALESCE(t.test_namespace, r.test_type) as test_namespace,
+        r.test_type,
+        r.status,
+        r.detected_at,
+        r.schema_name,
+        r.table_name,
+        r.test_results_description
+    FROM {ELEMENTARY_SCHEMA}.elementary_test_results r
+    LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_tests t ON r.test_unique_id = t.unique_id
+    WHERE r.detected_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    AND r.status IN ('fail', 'error', 'warn')
+    {search_filter}
+    ORDER BY r.detected_at DESC
+    LIMIT 200
+    """
+    return run_query(query)
+
+
+def get_historical_model_failures(days: int = DEFAULT_LOOKBACK_DAYS, search: str = ""):
+    """Get all model failures in time period (not just current failures)."""
+    search_filter = f"AND LOWER(r.unique_id) LIKE LOWER('%{search}%')" if search else ""
+
+    query = f"""
+    SELECT
+        r.unique_id,
+        r.name,
+        r.status,
+        r.execution_time,
+        r.generated_at,
+        m.schema_name,
+        r.message
+    FROM {ELEMENTARY_SCHEMA}.dbt_run_results r
+    LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.unique_id = m.unique_id
+    WHERE r.generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    AND r.resource_type = 'model'
+    AND r.status IN ('fail', 'error')
+    {search_filter}
+    ORDER BY r.generated_at DESC
+    LIMIT 200
+    """
+    return run_query(query)
+
+
+def get_historical_alert_counts(days: int = DEFAULT_LOOKBACK_DAYS):
+    """Get counts of all failures in time period."""
+    query = f"""
+    SELECT
+        (SELECT COUNT(*) FROM {ELEMENTARY_SCHEMA}.elementary_test_results
+         WHERE detected_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+         AND status IN ('fail', 'error', 'warn')) as failed_tests,
+        (SELECT COUNT(*) FROM {ELEMENTARY_SCHEMA}.dbt_run_results
+         WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+         AND resource_type = 'model'
+         AND status IN ('fail', 'error')) as failed_models
+    """
+    return run_query(query)

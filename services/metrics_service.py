@@ -140,11 +140,14 @@ def get_project_totals():
 
 
 def get_total_execution_time(days: int = DEFAULT_LOOKBACK_DAYS):
-    """Get total execution time for recent runs."""
+    """Get total runtime from invocation durations (not query execution sum)."""
     query = f"""
-    SELECT SUM(execution_time) as total_time
-    FROM {ELEMENTARY_SCHEMA}.dbt_run_results
-    WHERE generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
-    AND resource_type = 'model'
+    SELECT SUM(
+        TIMESTAMPDIFF('second', TRY_TO_TIMESTAMP(run_started_at), TRY_TO_TIMESTAMP(run_completed_at))
+    ) as total_time
+    FROM {ELEMENTARY_SCHEMA}.dbt_invocations
+    WHERE created_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
+    AND run_started_at IS NOT NULL
+    AND run_completed_at IS NOT NULL
     """
     return run_query(query)
