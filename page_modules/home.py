@@ -1,7 +1,10 @@
 """Home page - Overview dashboard with KPIs."""
 
+import os
 import streamlit as st
 from services.metrics_service import get_dashboard_kpis, get_recent_runs, get_top_failures, get_project_totals, get_total_execution_time
+
+DBT_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "dbt-logo.svg")
 
 
 def _format_timestamp(ts):
@@ -73,10 +76,6 @@ def _format_duration(seconds) -> str:
     else:
         return f"{seconds}s"
 
-
-import os
-
-DBT_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "dbt-logo.svg")
 
 
 def render(search_filter: str = ""):
