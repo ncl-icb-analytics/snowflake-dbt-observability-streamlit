@@ -79,19 +79,20 @@ def render(search_filter: str = ""):
         model_name = row["MODEL_NAME"]
 
         # Determine icon and badge based on change
+        # Only show badges when viewing "All" - redundant when filtered
         if change_pct is None:
             icon = "📊"
             badge = ""
         elif change_pct > 50:
             icon = "📈"
-            badge = " :red[HIGH GROWTH]"
+            badge = " :red[HIGH GROWTH]" if trend_filter == "All" else ""
         elif change_pct < -20:
             icon = "📉"
-            badge = " :orange[SHRINKING]"
-        elif change_pct > 10:
+            badge = " :orange[SHRINKING]" if trend_filter == "All" else ""
+        elif change_pct > 0:
             icon = "📈"
             badge = ""
-        elif change_pct < -10:
+        elif change_pct < 0:
             icon = "📉"
             badge = ""
         else:
