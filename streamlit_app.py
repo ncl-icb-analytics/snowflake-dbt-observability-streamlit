@@ -45,6 +45,13 @@ def main():
         st.session_state["selected_test"] = None
     if "selected_invocation" not in st.session_state:
         st.session_state["selected_invocation"] = None
+    if "current_page" not in st.session_state:
+        st.session_state["current_page"] = "Home"
+
+    # Check if we should navigate to a specific page (from back buttons)
+    if st.session_state.get("nav_page"):
+        st.session_state["current_page"] = st.session_state["nav_page"]
+        st.session_state["nav_page"] = None
 
     # Check if viewing detail page
     if st.session_state.get("selected_model"):
@@ -62,15 +69,14 @@ def main():
     # Sidebar navigation
     st.sidebar.title("dbt Observability")
 
-    # Check if we should navigate to a specific page (from back buttons)
-    default_index = 0
-    if st.session_state.get("nav_page"):
-        page_list = list(PAGES.keys())
-        if st.session_state["nav_page"] in page_list:
-            default_index = page_list.index(st.session_state["nav_page"])
-        st.session_state["nav_page"] = None
+    page_list = list(PAGES.keys())
+    current_index = page_list.index(st.session_state["current_page"]) if st.session_state["current_page"] in page_list else 0
 
-    page_name = st.sidebar.radio("Navigation", list(PAGES.keys()), index=default_index, label_visibility="collapsed")
+    page_name = st.sidebar.radio("Navigation", page_list, index=current_index, label_visibility="collapsed")
+
+    # Update current page when user clicks sidebar
+    if page_name != st.session_state["current_page"]:
+        st.session_state["current_page"] = page_name
 
     page_module = PAGES[page_name]
     page_module.render()
