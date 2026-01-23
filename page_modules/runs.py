@@ -110,9 +110,13 @@ def render(search_filter: str = ""):
         skipped = int(row["SKIPPED_COUNT"] or 0)
         models_run = int(row["MODELS_RUN"] or 0)
         duration = row["DURATION_SECONDS"] or 0
+        tests_run = int(row.get("TESTS_RUN") or 0)
+        tests_passed = int(row.get("TESTS_PASSED") or 0)
+        tests_failed = int(row.get("TESTS_FAILED") or 0)
+        tests_warned = int(row.get("TESTS_WARNED") or 0)
 
-        # Status icon
-        if fail > 0:
+        # Status icon - include test failures
+        if fail > 0 or tests_failed > 0:
             status_icon = "🔴"
         elif skipped > 0 and success == 0:
             status_icon = "⚪"
@@ -138,6 +142,15 @@ def render(search_filter: str = ""):
                     st.write(f"🟢 {success} 🔴 {fail}")
                 else:
                     st.write(f"🟢 {success}")
+                # Test stats
+                if tests_run > 0:
+                    st.caption("Tests")
+                    test_parts = [f"🟢 {tests_passed}"]
+                    if tests_failed > 0:
+                        test_parts.append(f"🔴 {tests_failed}")
+                    if tests_warned > 0:
+                        test_parts.append(f"🟡 {tests_warned}")
+                    st.write(" ".join(test_parts))
             with cols[2]:
                 st.caption("Duration")
                 st.write(_format_duration(duration))

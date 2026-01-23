@@ -17,6 +17,16 @@ def get_invocations(days: int = DEFAULT_LOOKBACK_DAYS, limit: int = 50, offset: 
         FROM {ELEMENTARY_SCHEMA}.dbt_run_results
         WHERE resource_type = 'model'
         GROUP BY invocation_id
+    ),
+    test_stats AS (
+        SELECT
+            invocation_id,
+            COUNT(*) as total_tests,
+            SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END) as tests_passed,
+            SUM(CASE WHEN status IN ('fail', 'error') THEN 1 ELSE 0 END) as tests_failed,
+            SUM(CASE WHEN status = 'warn' THEN 1 ELSE 0 END) as tests_warned
+        FROM {ELEMENTARY_SCHEMA}.elementary_test_results
+        GROUP BY invocation_id
     )
     SELECT
         i.invocation_id,
@@ -32,9 +42,14 @@ def get_invocations(days: int = DEFAULT_LOOKBACK_DAYS, limit: int = 50, offset: 
         COALESCE(s.success_count, 0) as success_count,
         COALESCE(s.fail_count, 0) as fail_count,
         COALESCE(s.skipped_count, 0) as skipped_count,
-        TIMESTAMPDIFF('second', TRY_TO_TIMESTAMP(i.run_started_at), TRY_TO_TIMESTAMP(i.run_completed_at)) as duration_seconds
+        TIMESTAMPDIFF('second', TRY_TO_TIMESTAMP(i.run_started_at), TRY_TO_TIMESTAMP(i.run_completed_at)) as duration_seconds,
+        COALESCE(t.total_tests, 0) as tests_run,
+        COALESCE(t.tests_passed, 0) as tests_passed,
+        COALESCE(t.tests_failed, 0) as tests_failed,
+        COALESCE(t.tests_warned, 0) as tests_warned
     FROM {ELEMENTARY_SCHEMA}.dbt_invocations i
     LEFT JOIN run_stats s ON i.invocation_id = s.invocation_id
+    LEFT JOIN test_stats t ON i.invocation_id = t.invocation_id
     WHERE i.created_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
     ORDER BY i.created_at DESC
     LIMIT {limit} OFFSET {offset}
