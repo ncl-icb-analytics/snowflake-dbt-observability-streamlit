@@ -74,11 +74,18 @@ def _format_duration(seconds) -> str:
         return f"{seconds}s"
 
 
+DBT_LOGO_URL = "https://www.getdbt.com/ui/img/logos/dbt-logo.svg"
+
+
 def render(search_filter: str = ""):
-    # Title and time range selector in same row
+    # Title with dbt logo and time range selector
     title_col, range_col = st.columns([4, 1])
     with title_col:
-        st.title("dbt Project Health")
+        logo_col, text_col = st.columns([0.15, 3])
+        with logo_col:
+            st.image(DBT_LOGO_URL, width=50)
+        with text_col:
+            st.title("Project Health")
     with range_col:
         time_range = st.selectbox(
             "Time Range",
