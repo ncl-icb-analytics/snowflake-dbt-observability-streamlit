@@ -157,22 +157,19 @@ def render(search_filter: str = ""):
                 unique_id = f_row["UNIQUE_ID"]
                 model_path = f_row.get("MODEL_PATH") or ""
 
-                with st.container(border=True):
+                with st.container(border=True, height=120):
                     col1, col2 = st.columns([4, 1])
                     with col1:
                         if f_row["TYPE"] == "test":
-                            # For tests: show model name as title, test name as subtitle
                             model_name = f_row.get("MODEL_NAME") or "unknown"
                             test_name = _truncate(f_row["NAME"])
                             st.markdown(f"{icon} **{model_name}**")
                             st.caption(f"{test_name}")
                         else:
-                            # For models: show model name as title
                             name = _truncate(f_row["NAME"])
                             st.markdown(f"{icon} **{name}**")
-                        # Show path for both
                         if model_path:
-                            st.caption(_truncate(model_path, 60))
+                            st.caption(_truncate(model_path, 50))
                         st.caption(_format_timestamp(f_row['FAILED_AT']))
                     with col2:
                         if f_row["TYPE"] == "test":
@@ -194,10 +191,9 @@ def render(search_filter: str = ""):
         else:
             for _, r_row in runs.iterrows():
                 invocation_id = r_row["INVOCATION_ID"]
-                with st.container(border=True):
+                with st.container(border=True, height=120):
                     col1, col2 = st.columns([4, 1])
                     with col1:
-                        # Use created_at (TIMESTAMP_NTZ) for display
                         st.markdown(f"**{_format_timestamp(r_row['CREATED_AT'])}**")
                         cmd = r_row["COMMAND"] or "dbt"
                         target = r_row["TARGET_NAME"] or ""
@@ -208,23 +204,20 @@ def render(search_filter: str = ""):
                         fail = int(r_row.get("FAIL_COUNT") or 0)
                         duration = r_row.get("DURATION_SECONDS") or 0
 
-                        # First line: command, target, warehouse
                         info_parts = [cmd, target]
                         if warehouse:
                             info_parts.append(warehouse)
                         st.caption(" | ".join(p for p in info_parts if p))
 
-                        # Show selection if present (truncate if too long)
                         if selected:
-                            st.caption(_truncate(selected, 60))
+                            st.caption(_truncate(selected, 50))
 
-                        # Run stats
                         if models_run > 0:
                             time_str = _format_duration(duration)
                             if fail > 0:
-                                st.markdown(f"{models_run} models | 🟢 {success} 🔴 {fail} | {time_str}")
+                                st.caption(f"{models_run} models | 🟢 {success} 🔴 {fail} | {time_str}")
                             else:
-                                st.markdown(f"{models_run} models | 🟢 {success} | {time_str}")
+                                st.caption(f"{models_run} models | 🟢 {success} | {time_str}")
                     with col2:
                         if st.button("View", key=f"home_run_{invocation_id}"):
                             st.session_state["selected_invocation"] = invocation_id

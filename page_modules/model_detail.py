@@ -14,18 +14,24 @@ from components.charts import execution_time_chart, row_count_trend_chart, row_c
 from config import DEFAULT_LOOKBACK_DAYS
 
 
-def _format_row_count(count) -> str:
+def _format_row_count(count, with_sign: bool = False) -> str:
     """Format row count with K/M/B suffixes."""
     if count is None:
         return "N/A"
     count = int(count)
-    if count >= 1_000_000_000:
-        return f"{count / 1_000_000_000:.1f}B"
-    elif count >= 1_000_000:
-        return f"{count / 1_000_000:.1f}M"
-    elif count >= 1_000:
-        return f"{count / 1_000:.1f}K"
-    return str(count)
+    sign = ""
+    if with_sign and count > 0:
+        sign = "+"
+    abs_count = abs(count)
+    if abs_count >= 1_000_000_000:
+        formatted = f"{count / 1_000_000_000:.1f}B"
+    elif abs_count >= 1_000_000:
+        formatted = f"{count / 1_000_000:.1f}M"
+    elif abs_count >= 1_000:
+        formatted = f"{count / 1_000:.1f}K"
+    else:
+        formatted = str(count)
+    return f"{sign}{formatted}" if with_sign and count > 0 else formatted
 
 
 def render(unique_id: str):
@@ -117,7 +123,7 @@ def render(unique_id: str):
             # Format delta string with sign (check for NaN as well as None)
             has_delta = row_change is not None and change_pct is not None and not pd.isna(row_change) and not pd.isna(change_pct)
             if has_delta:
-                delta_str = f"{'+' if row_change >= 0 else ''}{_format_row_count(int(row_change))} ({change_pct:+.1f}%)"
+                delta_str = f"{_format_row_count(int(row_change), with_sign=True)} ({change_pct:+.1f}%)"
                 delta_color = "normal" if row_change >= 0 else "inverse"
                 st.metric("Row Count", _format_row_count(row_count), delta=delta_str, delta_color=delta_color)
             else:

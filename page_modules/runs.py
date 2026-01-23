@@ -199,7 +199,8 @@ def _render_invocation_detail(invocation_id: str):
         _render_invocation_tests(invocation_id)
 
     with tab_waterfall:
-        _render_waterfall_chart(invocation_id, details)
+        with st.spinner("Loading timeline..."):
+            _render_waterfall_chart(invocation_id, details)
 
 
 def _render_invocation_models(invocation_id: str):

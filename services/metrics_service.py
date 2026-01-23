@@ -79,14 +79,15 @@ def get_recent_runs(limit: int = 10):
 
 
 def get_top_failures(limit: int = 5, days: int = DEFAULT_LOOKBACK_DAYS):
-    """Get top current failures for 'needs attention' section with cleaner names."""
+    """Get current failures (latest run is failing) for 'needs attention' section."""
     query = f"""
-    WITH test_failures AS (
+    WITH test_latest AS (
         SELECT
             r.test_unique_id as unique_id,
             COALESCE(t.short_name, r.test_name) as name,
             'test' as type,
             r.detected_at as failed_at,
+            r.status,
             r.schema_name,
             COALESCE(t.test_namespace, r.test_type) as test_namespace,
             r.table_name as model_name,
@@ -97,14 +98,14 @@ def get_top_failures(limit: int = 5, days: int = DEFAULT_LOOKBACK_DAYS):
         LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_tests t ON r.test_unique_id = t.unique_id
         LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.table_name = m.name
         WHERE r.detected_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
-        AND r.status IN ('fail', 'error')
     ),
-    model_failures AS (
+    model_latest AS (
         SELECT
             r.unique_id,
             r.name,
             'model' as type,
             r.generated_at as failed_at,
+            r.status,
             m.schema_name,
             NULL as test_namespace,
             NULL as model_name,
@@ -114,14 +115,15 @@ def get_top_failures(limit: int = 5, days: int = DEFAULT_LOOKBACK_DAYS):
         FROM {ELEMENTARY_SCHEMA}.dbt_run_results r
         LEFT JOIN {ELEMENTARY_SCHEMA}.dbt_models m ON r.unique_id = m.unique_id
         WHERE r.generated_at >= DATEADD(day, -{days}, CURRENT_TIMESTAMP())
-        AND r.status IN ('fail', 'error')
         AND r.resource_type = 'model'
     )
     SELECT unique_id, name, type, failed_at, schema_name, test_namespace, model_name, tested_model_id, model_path
     FROM (
-        SELECT * FROM test_failures WHERE rn = 1
+        SELECT unique_id, name, type, failed_at, schema_name, test_namespace, model_name, tested_model_id, model_path
+        FROM test_latest WHERE rn = 1 AND status IN ('fail', 'error')
         UNION ALL
-        SELECT * FROM model_failures WHERE rn = 1
+        SELECT unique_id, name, type, failed_at, schema_name, test_namespace, model_name, tested_model_id, model_path
+        FROM model_latest WHERE rn = 1 AND status IN ('fail', 'error')
     )
     ORDER BY failed_at DESC
     LIMIT {limit}
