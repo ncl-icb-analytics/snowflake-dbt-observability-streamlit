@@ -8,9 +8,10 @@ from config import DEFAULT_LOOKBACK_DAYS
 
 def render(test_unique_id: str):
     """Render full test detail page."""
-    # Back button
+    # Back button - navigate to Tests page
     if st.button("← Back to Tests"):
         st.session_state["selected_test"] = None
+        st.session_state["nav_page"] = "Tests"
         st.rerun()
 
     # Get test details

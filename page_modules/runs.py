@@ -162,9 +162,10 @@ def render(search_filter: str = ""):
 
 def _render_invocation_detail(invocation_id: str):
     """Render detail view for a specific invocation."""
-    # Back button
+    # Back button - navigate to Runs page
     if st.button("← Back to Runs"):
         st.session_state["selected_invocation"] = None
+        st.session_state["nav_page"] = "Runs"
         st.rerun()
 
     # Get invocation details

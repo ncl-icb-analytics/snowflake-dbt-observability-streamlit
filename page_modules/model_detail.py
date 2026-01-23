@@ -36,9 +36,10 @@ def _format_row_count(count, with_sign: bool = False) -> str:
 
 def render(unique_id: str):
     """Render full model detail page."""
-    # Back button
+    # Back button - navigate to Models page
     if st.button("← Back to Models"):
         st.session_state["selected_model"] = None
+        st.session_state["nav_page"] = "Models"
         st.rerun()
 
     # Get model details

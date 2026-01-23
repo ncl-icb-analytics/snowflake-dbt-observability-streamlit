@@ -61,7 +61,16 @@ def main():
 
     # Sidebar navigation
     st.sidebar.title("dbt Observability")
-    page_name = st.sidebar.radio("Navigation", list(PAGES.keys()), label_visibility="collapsed")
+
+    # Check if we should navigate to a specific page (from back buttons)
+    default_index = 0
+    if st.session_state.get("nav_page"):
+        page_list = list(PAGES.keys())
+        if st.session_state["nav_page"] in page_list:
+            default_index = page_list.index(st.session_state["nav_page"])
+        st.session_state["nav_page"] = None
+
+    page_name = st.sidebar.radio("Navigation", list(PAGES.keys()), index=default_index, label_visibility="collapsed")
 
     page_module = PAGES[page_name]
     page_module.render()
