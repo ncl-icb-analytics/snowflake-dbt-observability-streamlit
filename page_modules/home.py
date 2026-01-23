@@ -82,11 +82,11 @@ def render(search_filter: str = ""):
     # Title with dbt logo and time range selector
     title_col, range_col = st.columns([4, 1])
     with title_col:
-        logo_col, text_col = st.columns([0.12, 3])
+        logo_col, text_col = st.columns([0.08, 3])
         with logo_col:
-            st.image(DBT_LOGO_PATH, width=70)
+            st.image(DBT_LOGO_PATH, width=50)
         with text_col:
-            st.title("Project Health")
+            st.title("dbt Project Health")
     with range_col:
         time_range = st.selectbox(
             "Time Range",
@@ -211,6 +211,10 @@ def render(search_filter: str = ""):
                         success = int(r_row.get("SUCCESS_COUNT") or 0)
                         fail = int(r_row.get("FAIL_COUNT") or 0)
                         duration = r_row.get("DURATION_SECONDS") or 0
+                        tests_run = int(r_row.get("TESTS_RUN") or 0)
+                        tests_passed = int(r_row.get("TESTS_PASSED") or 0)
+                        tests_failed = int(r_row.get("TESTS_FAILED") or 0)
+                        tests_warned = int(r_row.get("TESTS_WARNED") or 0)
 
                         info_parts = [cmd, target]
                         if warehouse:
@@ -220,12 +224,22 @@ def render(search_filter: str = ""):
                         if selected:
                             st.caption(_truncate(selected, 50))
 
+                        # Model stats
                         if models_run > 0:
                             time_str = _format_duration(duration)
                             if fail > 0:
-                                st.caption(f"{models_run} models | 🟢 {success} 🔴 {fail} | {time_str}")
+                                st.caption(f"Models: 🟢 {success} 🔴 {fail} | {time_str}")
                             else:
-                                st.caption(f"{models_run} models | 🟢 {success} | {time_str}")
+                                st.caption(f"Models: 🟢 {success} | {time_str}")
+
+                        # Test stats
+                        if tests_run > 0:
+                            test_parts = [f"Tests: 🟢 {tests_passed}"]
+                            if tests_failed > 0:
+                                test_parts.append(f"🔴 {tests_failed}")
+                            if tests_warned > 0:
+                                test_parts.append(f"🟡 {tests_warned}")
+                            st.caption(" ".join(test_parts))
                     with col2:
                         if st.button("View", key=f"home_run_{invocation_id}"):
                             st.session_state["selected_invocation"] = invocation_id
