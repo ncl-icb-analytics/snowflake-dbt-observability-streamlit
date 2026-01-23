@@ -74,16 +74,18 @@ def _format_duration(seconds) -> str:
         return f"{seconds}s"
 
 
-DBT_LOGO_URL = "https://www.getdbt.com/ui/img/logos/dbt-logo.svg"
+import os
+
+DBT_LOGO_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "dbt-logo.svg")
 
 
 def render(search_filter: str = ""):
     # Title with dbt logo and time range selector
     title_col, range_col = st.columns([4, 1])
     with title_col:
-        logo_col, text_col = st.columns([0.15, 3])
+        logo_col, text_col = st.columns([0.12, 3])
         with logo_col:
-            st.image(DBT_LOGO_URL, width=50)
+            st.image(DBT_LOGO_PATH, width=70)
         with text_col:
             st.title("Project Health")
     with range_col:
