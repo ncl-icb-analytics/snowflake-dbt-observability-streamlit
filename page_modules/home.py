@@ -82,9 +82,9 @@ def render(search_filter: str = ""):
     # Title with dbt logo and time range selector
     title_col, range_col = st.columns([4, 1])
     with title_col:
-        logo_col, text_col = st.columns([0.08, 3])
+        logo_col, text_col = st.columns([0.15, 3])
         with logo_col:
-            st.image(DBT_LOGO_PATH, width=50)
+            st.image(DBT_LOGO_PATH, width=120)
         with text_col:
             st.title("dbt Project Health")
     with range_col:
