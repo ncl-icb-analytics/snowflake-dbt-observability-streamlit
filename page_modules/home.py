@@ -157,7 +157,7 @@ def render(search_filter: str = ""):
                 unique_id = f_row["UNIQUE_ID"]
                 model_path = f_row.get("MODEL_PATH") or ""
 
-                with st.container(border=True, height=120):
+                with st.container(border=True):
                     col1, col2 = st.columns([4, 1])
                     with col1:
                         if f_row["TYPE"] == "test":
@@ -191,7 +191,7 @@ def render(search_filter: str = ""):
         else:
             for _, r_row in runs.iterrows():
                 invocation_id = r_row["INVOCATION_ID"]
-                with st.container(border=True, height=120):
+                with st.container(border=True):
                     col1, col2 = st.columns([4, 1])
                     with col1:
                         st.markdown(f"**{_format_timestamp(r_row['CREATED_AT'])}**")
